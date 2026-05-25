@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 | Page Not Found</title>
+    <link rel="icon" type="image/x-icon" href="/static/image/DTing.png">
+
+    <style>
+        :root {
+            --primary: #6c63ff;
+            --secondary: #ff6584;
+            --bg1: #0f2027;
+            --bg2: #203a43;
+            --bg3: #2c5364;
+            --text: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background: linear-gradient(135deg, var(--bg1), var(--bg2), var(--bg3));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 50px 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .error-code {
+            font-size: clamp(80px, 20vw, 140px);
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .title {
+            font-size: clamp(22px, 4vw, 28px);
+            margin-bottom: 12px;
+        }
+
+        .description {
+            font-size: clamp(14px, 3.5vw, 16px);
+            opacity: 0.85;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 28px;
+            border-radius: 30px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            color: #fff;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        footer {
+            margin-top: 25px;
+            font-size: 13px;
+            opacity: 0.6;
+        }
+
+        /* Extra small screens */
+        @media (max-width: 360px) {
+            .container {
+                padding: 35px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="error-code">404</div>
+        <div class="title">Page Not Found</div>
+        <div class="description">
+            The page you are looking for doesn’t exist or has been moved.<br>
+            Please check the URL or go back to the homepage.
+        </div>
+
+        <a href="/" class="btn">Go to Home</a>
+
+        <footer>
+            © 2026 DTing Platform
+        </footer>
+    </div>
+
+</body>
+</html>
