@@ -14,6 +14,7 @@ class UserTable(Base):
     user_id = Column(String, primary_key=True, unique=True, index=True)
 
     full_name = Column(String(30), nullable=False)
+    username = Column(String(30), unique=True, index=True, nullable=True)
     email_address = Column(String(30), unique=True, index=True, nullable=False)
 
     country_code = Column(

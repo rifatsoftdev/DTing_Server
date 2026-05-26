@@ -1,4 +1,6 @@
-import smtplib, json
+import json
+import logging
+import smtplib
 import firebase_admin
 
 from enum import Enum
@@ -11,20 +13,28 @@ from email.mime.text import MIMEText
 
 from twilio.rest import Client
 
-from app.constants import AnsiColor, ENV
+from app.constants import ENV
 from app.model import UserTable, SessionTable
+from app.templates import NotificationTemplate
 
 from app.router.notify_router import check_online_user, send_notification as send_ws_notification
+
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationData:
     def __init__(
         self,
         user_id: str = None,
+        target_id: str = None,
         title: str = None,
         body: str = None,
+        template: str = None,
+        context: dict = None,
 
         noty_type: str = "default",
+        type: str = None,
         data: dict = None,
         image_url: str = None,
         priority: str = "normal",
@@ -33,9 +43,11 @@ class NotificationData:
         email: bool = True,
         sms: bool = True
     ):
-        self.user_id = user_id
+        self.user_id = user_id or target_id
         self.title = title or "Notification"
         self.body = body or ""
+        self.template = template
+        self.context = context or {}
 
         self.noty_type = self._stringify(type or noty_type)
         self.data = data or {}
@@ -46,6 +58,17 @@ class NotificationData:
         self.email = email
         self.sms = sms
 
+    @property
+    def channels(self) -> list[str]:
+        channels = []
+        if self.push:
+            channels.append("push")
+        if self.email:
+            channels.append("email")
+        if self.sms:
+            channels.append("sms")
+        return channels
+
     @staticmethod
     def _stringify(value) -> str:
         if value is None:
@@ -54,19 +77,22 @@ class NotificationData:
             return str(value.value)
         return str(value)
 
-    def render(self) -> dict:
+    def render(self, channels: list[str] = None) -> dict:
         if self.template:
             return NotificationTemplate.resolve(
                 template=self.template,
                 context=self.context,
                 title=self.title,
                 body=self.body,
+                channels=channels or self.channels,
             )
 
-        return NotificationTemplate.fallback(
+        fallback = NotificationTemplate.fallback(
             title=self.title,
             body=self.body,
         )
+        selected_channels = channels or self.channels
+        return {channel: fallback[channel] for channel in selected_channels if channel in fallback}
 
 
 class NotificationServices:
@@ -74,7 +100,7 @@ class NotificationServices:
         self,
         db: Session,
         background_tasks: BackgroundTasks,
-        request: Request,
+        request: Request = None,
         authorization: str = None
     ):
         self.db = db
@@ -118,15 +144,15 @@ class NotificationServices:
             return True if response else False
         
         except UnregisteredError:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Device unregistered!")
+            logger.warning("Device unregistered for notification user_id=%s", data.user_id)
             return False
         
         except FirebaseError as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            logger.warning("Firebase notification failed for user_id=%s: %s", data.user_id, e)
             return False
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            logger.exception("Push notification failed for user_id=%s: %s", data.user_id, e)
             return False
 
 
@@ -143,47 +169,49 @@ class NotificationServices:
         msg['To'] = to_email
 
         try:
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
+            smtp_class = smtplib.SMTP_SSL if ENV.EMAIL_USE_SSL else smtplib.SMTP
+            with smtp_class(smtp_server, smtp_port) as server:
+                if ENV.EMAIL_USE_TLS and not ENV.EMAIL_USE_SSL:
+                    server.starttls()
                 server.login(email_address, email_password)
                 server.sendmail(email_address, to_email, msg.as_string())
             return True
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            logger.exception("Email notification failed for user_id=%s to=%s: %s", data.user_id, to_email, e)
             return False
 
 
     def send_by_sms(self, phone_number: str, data: NotificationData, content: dict = None) -> bool:
         try:
-            # Placeholder for SMS gateway integration
             sms_content = content or data.render()["sms"]
+            if not ENV.ACCOUNT_SID or not ENV.AUTH_TOKEN or not ENV.TWILIO_PHONE_NUMBER:
+                logger.error("Twilio SMS configuration is incomplete")
+                return False
             
             client = Client(ENV.ACCOUNT_SID, ENV.AUTH_TOKEN)
             message = client.messages.create(
-                from_='+19129785261',
-                body='proxy_pass http://127.0.0.1:8000',
-                to='+8801576572010'
+                from_=ENV.TWILIO_PHONE_NUMBER,
+                body=sms_content["body"],
+                to=phone_number
             )
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            logger.exception("SMS notification failed for user_id=%s to=%s: %s", data.user_id, phone_number, e)
             return False
 
-        print(message.sid)
-        print(f"{AnsiColor.GREEN}SMS SENT{AnsiColor.RESET} to {phone_number}: {sms_content['title']} - {sms_content['body']}")
+        logger.info("SMS notification sent user_id=%s to=%s sid=%s", data.user_id, phone_number, message.sid)
         return True
 
     
     def send_notification(self, data: NotificationData) -> bool:
         """
-        Orchestrates notification sending with fallback logic:
-        Push/WS -> Email -> SMS
+        Sends the notification through the channels selected in NotificationData.
         """
-        self.background_tasks.add_task(self._process_fallback_notification, data)
+        self.background_tasks.add_task(self._process_notification, data)
         return True
 
 
-    async def _process_fallback_notification(self, data: NotificationData):
+    async def _process_notification(self, data: NotificationData):
         user = self.db.query(UserTable).filter(
             UserTable.user_id == data.user_id
         ).first()
@@ -191,7 +219,7 @@ class NotificationServices:
         if not user:
             return
 
-        content = data.render()
+        content = data.render(data.channels)
         notification_delivered = False
 
         # 1. Try WebSocket (Real-time)

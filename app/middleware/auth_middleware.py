@@ -1,8 +1,9 @@
 from fastapi import status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
 
 from app.core.database import SessionLocal
+from app.schema import GlobalResponse
 from services.auth.user_verification import UserVerificationService
 
 
@@ -43,14 +44,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             status_code = getattr(exc, "status_code", status.HTTP_401_UNAUTHORIZED)
             detail = getattr(exc, "detail", "Invalid or Expired Token")
-            return JSONResponse(
-                status_code=status_code,
-                content={
-                    "success": False,
-                    "message": detail,
-                    "data": {}
-                }
-            )
+            message = detail if isinstance(detail, str) else str(detail)
+            return self._unauthorized(message, status_code=status_code)
         finally:
             db.close()
 
@@ -65,12 +60,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def _is_public_path(self, path: str) -> bool:
         return path in self.public_paths
 
-    def _unauthorized(self, message: str) -> JSONResponse:
+    def _unauthorized(
+        self,
+        message: str,
+        status_code: int = status.HTTP_401_UNAUTHORIZED
+    ) -> JSONResponse:
+        response = GlobalResponse(
+            success=False,
+            message=message,
+            data={}
+        )
         return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={
-                "success": False,
-                "message": message,
-                "data": {}
-            }
+            status_code=status_code,
+            content=response.model_dump()
         )

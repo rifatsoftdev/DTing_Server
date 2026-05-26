@@ -154,7 +154,9 @@ class RegistrationService(UserRepository):
             # real time notification
             notificationServices = NotificationServices(
                 db=self.db,
-                background_tasks=self.background_tasks
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
             )
 
             notificationServices.send_notification(

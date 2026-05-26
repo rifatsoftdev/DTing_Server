@@ -26,6 +26,29 @@ auth_router = APIRouter()
 
 
 
+
+# ==============================================================================
+
+@auth_router.post("/register", response_model=GlobalResponse)
+async def register(
+    payload: RegisterRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    registrationService = RegistrationService(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return registrationService.register(payload=payload)
+
+
+
+
 # ==============================================================================
 
 @auth_router.post("/google-login")
@@ -89,28 +112,6 @@ async def logout(
     )
 
     return accountServices.logout(payload=payload)
-
-
-
-
-# ==============================================================================
-
-@auth_router.post("/register", response_model=GlobalResponse)
-async def register(
-    payload: RegisterRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    registrationService = RegistrationService(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return registrationService.register(payload=payload)
 
 
 

@@ -24,3 +24,9 @@ if __name__ == "__main__":
         # ssl_keyfile="localhost+2-key.pem",
         # ssl_certfile="localhost+2.pem"
     )
+
+
+# uvicorn app.main:app --reload
+
+# docker build --no-cache -t pocketpay-server .
+# docker run -p 8000:8000 pocketpay-server

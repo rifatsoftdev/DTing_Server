@@ -32,7 +32,7 @@ class UserServices:
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
-
+    
     @staticmethod
     def _format_date_of_birth(value):
         if value is None:
@@ -43,9 +43,113 @@ class UserServices:
             return value.isoformat()
         return str(value).split("T", 1)[0].split(" ", 1)[0]
     
-    def get_profile(self):
+    # a function of get user profile information
+    def profile(self):
+        try:
+            # Step 1: Extract and validate access token
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
+
+            # Step 2: Fetch user profile data
+            user = self.db.query(UserTable).filter(
+                UserTable.user_id == user_id
+            ).first()
+
+            # Step 3: Return profile response
+            return GlobalResponse(
+                success=True,
+                message="Profile fetched successfully",
+                data={
+                    "profile": {
+                        "full_name": user.full_name,
+                        "username": user.username or "null",
+                        "email_address": user.email_address,
+                        "phone_number": f"{user.country_code or ''}{user.phone_number or ''}",
+                        "country_code": user.country_code,
+                        "gender": user.user_gender,
+                        "date_of_birth": self._format_date_of_birth(user.date_of_birth),
+                        "phone_verified": user.phone_verified,
+                        "email_verified": user.email_verified,
+                        "link_google": user.link_google,
+                        "profile_picture": user.profile_image_url,
+                        "created_at": user.created_at.isoformat() if user.created_at else None
+                    }
+                }
+            )
+        
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+    # a function to get user settings information
+    def settings(self) -> GlobalResponse:
+        try:
+            # Step 1: Extract and validate access token
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
+
+            # Step 2: Fetch user settings data
+            user = self.db.query(UserTable).filter(
+                UserTable.user_id == user_id
+            ).first()
+
+            settings: SettingsTable = user.settings
+            enabled_tfa_methods: TwoFactorTable = user.two_factor
+            user_kyc: KYCTable = user.user_kyc
+
+            two_factor_methods = [
+                method.method_type.value if hasattr(method.method_type, "value") else str(method.method_type).lower()
+                for method in enabled_tfa_methods
+            ]
+
+            # Stap 3: Return settings response
+            return GlobalResponse(
+                success=True,
+                message="Profile fetched successfully",
+                data={
+                    "settings": {
+                        "allow_notifications": settings.allow_notifications if settings else None,
+                        "dark_mode": settings.dark_mode if settings else None,
+                        "country": settings.country if settings else None,
+                        "language": settings.language if settings else None,
+
+                        "totp_tfa_enabled": "totp" in two_factor_methods,
+                        "sms_tfa_enabled": "sms" in two_factor_methods,
+                        "email_tfa_enabled": "email" in two_factor_methods,
+                        "biometric_enabled": settings.biometric_enabled if settings else None,
+                        "account_locked": settings.account_locked if settings else None,
+
+                        "kyc_status": user_kyc.kyc_status if user_kyc else None,
+                        "kyc_verified_at": user_kyc.updated_at.isoformat() if user_kyc and user_kyc.updated_at else None
+                    }
+                }
+            )
+        
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+    # a function to get user session information
+    def sessions(self) -> GlobalResponse:
         try:
             # print(f"Profile attempt: {request}")
+
             
             access_token = Helpers.authorization(self.authorization)
 
@@ -82,35 +186,6 @@ class UserServices:
                 success=True,
                 message="Profile fetched successfully",
                 data={
-                    "profile": {
-                        "user_id": user.user_id,
-                        "full_name": user.full_name,
-                        "email_address": user.email_address,
-                        "phone_number": f"{user.country_code or ''}{user.phone_number or ''}",
-                        "country_code": user.country_code,
-                        "gender": user.user_gender,
-                        "date_of_birth": self._format_date_of_birth(user.date_of_birth),
-                        "phone_verified": user.phone_verified,
-                        "email_verified": user.email_verified,
-                        "link_google": user.link_google,
-                        "profile_picture": user.profile_image_url,
-                        "created_at": user.created_at.isoformat() if user.created_at else None
-                    },
-                    "settings": {
-                        "allow_notifications": settings.allow_notifications if settings else None,
-                        "dark_mode": settings.dark_mode if settings else None,
-                        "country": settings.country if settings else None,
-                        "language": settings.language if settings else None,
-
-                        "totp_tfa_enabled": "totp" in two_factor_methods,
-                        "sms_tfa_enabled": "sms" in two_factor_methods,
-                        "email_tfa_enabled": "email" in two_factor_methods,
-                        "biometric_enabled": settings.biometric_enabled if settings else None,
-                        "account_locked": settings.account_locked if settings else None,
-
-                        "kyc_status": user_kyc.kyc_status if user_kyc else None,
-                        "kyc_verified_at": user_kyc.updated_at.isoformat() if user_kyc and user_kyc.updated_at else None
-                    },
                     "session": {
                         "device_type": session.device_type if session else None,
                         "device_name": session.device_name if session else None,
@@ -127,6 +202,7 @@ class UserServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+    # a function to get user edit information
     def edit_info(self):
         try:
             # print(f"Profile attempt: {request}")
@@ -284,6 +360,7 @@ class UserServices:
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+    # a function to submit kyc information
     def kyc_submit(
         self,
         document_type: str,

@@ -22,6 +22,7 @@ history_router = APIRouter()
 
 # ==============================================================================
 
+@history_router.get("/all-notifications")
 @history_router.post("/all-notifications")
 async def all_notifications(
     background_tasks: BackgroundTasks,

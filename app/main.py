@@ -27,7 +27,7 @@ from app.router.offer_router import offer_router
 from app.router.template_router import template_router
 from app.router.settings_router import settings_router
 from app.router.tfa_router import tfa_router
-from app.router.user_router import user_router
+from app.router.me_router import me_router
 
 from services.setup.setup_services import SetupServices
 
@@ -198,7 +198,7 @@ app.include_router(offer_router, prefix="/offer", tags=["Offers"])              
 app.include_router(template_router, prefix="", tags=["Templates"])                  # check
 app.include_router(settings_router, prefix="/admin/settings", tags=["Admin Settings"]) # check
 app.include_router(tfa_router, prefix="/tfa", tags=["Two-Factor Authentication"])   # check
-app.include_router(user_router, prefix="/user", tags=["User Data"])                 # check
+app.include_router(me_router, prefix="/me", tags=["User Data"])                     # check
 
 
 

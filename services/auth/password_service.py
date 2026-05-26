@@ -99,6 +99,9 @@ class PasswordService(TokenGenerators):
                     template="auth.password.reset.request",
                     context={
                         "ip": ip,
+                        "name": user.full_name,
+                        "email": user.email_address,
+                        "reset_link": otp_token,
                     },
                     noty_type=NotificationType.ALERT,
                     push=False,
@@ -129,6 +132,9 @@ class PasswordService(TokenGenerators):
                     template="auth.password.reset.request",
                     context={
                         "ip": ip,
+                        "name": user.full_name,
+                        "email": user.email_address,
+                        "reset_link": otp_token,
                     },
                     noty_type=NotificationType.ALERT,
                     push=True,

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Header, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, Request, Header, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import date
@@ -10,11 +10,9 @@ from app.schema import GlobalResponse
 from services import UserServices
 from app.utils import Helpers
 
-from app.utils.cloudinary_storage import CloudinaryStorage
 
 
-
-user_router = APIRouter()
+me_router = APIRouter()
 
 
 
@@ -25,8 +23,8 @@ MAX_SIZE = 5 * 1024 * 1024  # 5MB
 
 # ==============================================================================
 
-@user_router.get("/profile", response_model=GlobalResponse)
-async def get_profile(
+@me_router.get("/profile", response_model=GlobalResponse)
+async def profile(
     request: Request,
     background_tasks: BackgroundTasks,
     authorization: str = Header(None),
@@ -39,14 +37,56 @@ async def get_profile(
         authorization=authorization
     )
 
-    return userServices.get_profile()
+    return userServices.profile()
     
 
 
 
 # ==============================================================================
 
-@user_router.get("/edit-info", response_model=GlobalResponse)
+@me_router.get("/sessions", response_model=GlobalResponse)
+async def sessions(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    userServices = UserServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return userServices.sessions()
+
+
+
+
+# ==============================================================================
+
+@me_router.get("/settings", response_model=GlobalResponse)
+async def settings(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    userServices = UserServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return userServices.settings()   
+
+
+
+
+# ==============================================================================
+
+@me_router.get("/edit-info", response_model=GlobalResponse)
 async def edit_info(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -66,7 +106,7 @@ async def edit_info(
 
 # ==============================================================================
 
-@user_router.post("/profile/update")
+@me_router.post("/profile/update")
 async def update_profile(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -111,59 +151,7 @@ async def update_profile(
 
 # ==============================================================================
 
-@user_router.post("/image-upload")
-async def upload_image(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db),
-    file: UploadFile = File(...)
-):
-    # type check
-    if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail="Only JPG, PNG, WEBP images allowed"
-        )
-
-    # size check
-    file.file.seek(0, 2)
-    size = file.file.tell()
-    file.file.seek(0)
-
-    if size > MAX_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail="Image size must be under 5MB"
-        )
-
-    try:
-        cloudinaryStorage = CloudinaryStorage(db=db)
-
-        result = cloudinaryStorage.upload_file(
-            file_path=file.file,
-            public_id=f"{file.filename}",
-            file_type="image"
-        )
-
-        return GlobalResponse(
-            success=True,
-            message="Image uploaded successfully",
-            data={
-                "img_url": result["secure_url"],
-            }
-        )
-
-    except Exception as e:
-        print(f"{AnsiColor.RED}ERROR{AnsiColor.RESET}:     {e}")
-        raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
-
-
-
-# ==============================================================================
-
-@user_router.post("/kyc/submit")
+@me_router.post("/kyc/submit")
 async def totp_enable(
     request: Request,
     background_tasks: BackgroundTasks,

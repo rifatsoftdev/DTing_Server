@@ -12,8 +12,10 @@ def _get_bool(name: str, default: bool = False) -> bool:
 
 
 class ENV:
+    # Public application URL
+    APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:8000")
+
     # DataBase configuration
-    # DATABASE_URL=postgresql://neondb_owner:npg_fYkgzUS7noa0@ep-cold-art-aoigs1p3-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
     DATABASE_URL: str= os.getenv("DATABASE_URL", "sqlite:///./database.db")
 
     # Email configuration
@@ -27,6 +29,7 @@ class ENV:
     # Twilio configuration
     ACCOUNT_SID: str = os.getenv("ACCOUNT_SID", "")
     AUTH_TOKEN: str = os.getenv("AUTH_TOKEN", "")
+    TWILIO_PHONE_NUMBER: str = os.getenv("TWILIO_PHONE_NUMBER", "")
 
     # JWT configuration
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
@@ -60,16 +63,16 @@ class ENV:
     DEBUG: bool = os.getenv("DEBUG", "True") == "True"
 
     # Cloudinary configuration
-    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "dgh76k5vn")
-    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "225665867937364")
-    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "y4qqSnxN3HTttMG2SgPZyX3vmH4")
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
 
     # Salt for password hashing
     SALT: bytes = os.getenv("SALT", "default_salt").encode()
 
     # Firebase configuration
     POCKETPAY_ADMINSDK: str = os.getenv("POCKETPAY_ADMINSDK", "{}")
-    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "717159986925-0eg4nraj1n2im0dkh9gf9ovlj2vfogum.apps.googleusercontent.com")
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
 
     # CORS configuration
     ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")

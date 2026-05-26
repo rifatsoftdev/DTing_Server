@@ -1,6 +1,8 @@
+from html import escape
+from urllib.parse import quote
 from typing import Dict, List, Optional
 
-from app.constants import String
+from app.constants import ENV, String
 
 
 BRAND_COLOR = "#1E88E5"
@@ -33,9 +35,12 @@ def _button(button_text: Optional[str], button_link: Optional[str]):
     if not button_text or not button_link:
         return ""
 
+    safe_text = escape(str(button_text))
+    safe_link = escape(str(button_link), quote=True)
+
     return f"""
       <div style="text-align:center; margin:25px 0;">
-        <a href="{button_link}" style="display:inline-block; background-color:{BRAND_COLOR}; color:#ffffff; text-decoration:none; padding:14px 28px; border-radius:6px; font-size:16px; font-weight:bold;">{button_text}</a>
+        <a href="{safe_link}" style="display:inline-block; background-color:{BRAND_COLOR}; color:#ffffff; text-decoration:none; padding:14px 28px; border-radius:6px; font-size:16px; font-weight:bold;">{safe_text}</a>
       </div>
     """
 
@@ -45,10 +50,12 @@ def _details_table(details: Optional[Dict[str, str]] = None):
     for key, value in (details or {}).items():
         if value is None or value == "":
             continue
+        safe_key = escape(str(key))
+        safe_value = escape(str(value))
         rows += f"""
           <tr>
-            <td style="padding:8px 0; color:#777777;">{key}</td>
-            <td style="padding:8px 0; color:#333333; text-align:right; font-weight:bold;">{value}</td>
+            <td style="padding:8px 0; color:#777777;">{safe_key}</td>
+            <td style="padding:8px 0; color:#333333; text-align:right; font-weight:bold;">{safe_value}</td>
           </tr>
         """
 
@@ -71,19 +78,21 @@ def _body(
     button_link: Optional[str] = None,
     footer_note: Optional[str] = None,
 ):
-    greeting = f"Hello, {name}" if name else "Hello,"
-    footer_note = footer_note or f"This is an automated notification from {String.COMPANY_NAME}. Please do not reply directly to this email."
+    safe_title = escape(str(title))
+    safe_message = escape(str(message))
+    greeting = f"Hello, {escape(str(name))}" if name else "Hello,"
+    safe_footer_note = escape(str(footer_note or f"This is an automated notification from {String.COMPANY_NAME}. Please do not reply directly to this email."))
 
     return main_structure(f"""
       <tr>
         <td style="padding:35px;">
-          <h2 style="color:#333333; text-align:center; margin-bottom:20px;">{title}</h2>
+          <h2 style="color:#333333; text-align:center; margin-bottom:20px;">{safe_title}</h2>
           <p style="color:#555555; font-size:16px; line-height:1.5;">{greeting}</p>
-          <p style="color:#555555; font-size:16px; line-height:1.5;">{message}</p>
+          <p style="color:#555555; font-size:16px; line-height:1.5;">{safe_message}</p>
           {_details_table(details)}
           {_button(button_text, button_link)}
           <p style="color:#999999; font-size:13px; margin-top:25px; text-align:center;">
-            {footer_note}
+            {safe_footer_note}
           </p>
         </td>
       </tr>
@@ -92,6 +101,10 @@ def _body(
 
 def _pack(title: str, body: str) -> Dict[str, str]:
     return {"title": title, "body": body}
+
+
+def _url(path: str) -> str:
+    return f"{ENV.APP_BASE_URL.rstrip('/')}/{path.lstrip('/')}"
 
 
 class EmailTemplate:
@@ -144,12 +157,13 @@ class EmailTemplate:
     @staticmethod
     def reset_password_template(name: str, email: str, reset_link: str):
         title = "Reset Your Password"
+        button_link = reset_link if str(reset_link).startswith(("http://", "https://")) else _url(f"auth/reset-password/{quote(str(reset_link), safe='')}")
         body = _body(
             title=title,
             name=name,
             message=f"We received a request to reset the password for your account {email}. Click the button below to set a new password securely.",
             button_text="Reset Password",
-            button_link=f"http://192.168.1.100:8000/auth/reset-password/{reset_link}",
+            button_link=button_link,
             footer_note="This link is valid for the next 15 minutes. If you did not request a password reset, you can safely ignore this email.",
         )
         return _pack(title, body)
