@@ -1,17 +1,19 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Header
+from fastapi import APIRouter, Depends, BackgroundTasks, Header, Query
 from fastapi.responses import HTMLResponse
 from fastapi.requests import Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import signin_rate_limit
 
 from app.schema import (
     GlobalResponse, FCMTokenRequest, ForgetPasswordRequest, GoogleLoginRequest,
     LoginRequest, RegisterRequest, OTPRequest, VerifyOTPRequest, LogoutAllRequest,
     ChangePasswordRequest, CancelDeleteAccountRequest, LinkGoogleAccountRequest,
     DeleteAccountRequest, ResetPasswordRequest, LogoutRequest, TOTPSetupRequest,
-    AccessTokenRequest, FinalSetupRequest
+    AccessTokenRequest, EmailVerificationRequest
 )
+from app.schema.auth_schemas import NewUserEmailVerificationRequest
 from services import (
     GoogleOauth, TFAServices,
     RegistrationService,
@@ -29,8 +31,8 @@ auth_router = APIRouter()
 
 # ==============================================================================
 
-@auth_router.post("/register", response_model=GlobalResponse)
-async def register(
+@auth_router.post("/signup", response_model=GlobalResponse)
+async def signup(
     payload: RegisterRequest,
     request: Request,
     background_tasks: BackgroundTasks,
@@ -44,7 +46,56 @@ async def register(
         authorization=authorization
     )
 
-    return registrationService.register(payload=payload)
+    return registrationService.signup(payload=payload)
+
+
+
+
+# ==============================================================================
+
+@auth_router.post("/verify-new-user-email", response_model=GlobalResponse)
+@auth_router.post("/veryfy-new-user-email", response_model=GlobalResponse)
+async def veryfy_new_user_email(
+    payload: NewUserEmailVerificationRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    registrationService = RegistrationService(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return registrationService.veryfy_new_user_email(payload=payload)
+
+
+
+
+
+# ==============================================================================
+
+@auth_router.post("/signin")
+@auth_router.post("/login")
+async def signin(
+    payload: LoginRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    _: None = Depends(signin_rate_limit),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """User login endpoint."""
+    accountServices = AccountServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return accountServices.signin(payload=payload)
 
 
 
@@ -73,29 +124,6 @@ async def google_login(
 
 # ==============================================================================
 
-@auth_router.post("/login")
-async def login(
-    payload: LoginRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    """User login endpoint."""
-    accountServices = AccountServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return accountServices.login(payload=payload)
-
-    
-
-
-# ==============================================================================
-
 @auth_router.post("/logout")
 async def logout(
     payload: LogoutRequest, 
@@ -116,22 +144,46 @@ async def logout(
 
 
 
-@auth_router.post("/final-setup", response_model=GlobalResponse)
-async def final_setup(
-    payload: FinalSetupRequest,
+# ==============================================================================
+
+@auth_router.get("/verify-email", response_model=GlobalResponse)
+async def verify_email(
     request: Request,
     background_tasks: BackgroundTasks,
+    token: str = Query(...),
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
-    registrationService = RegistrationService(
+    accountServices = AccountServices(
         db=db,
         background_tasks=background_tasks,
         request=request,
         authorization=authorization
     )
 
-    return registrationService.final_setup(payload=payload)
+    return accountServices.verify_email(token=token)
+
+
+
+
+# ==============================================================================
+
+@auth_router.post("/resend-verification-email", response_model=GlobalResponse)
+async def resend_verification_email(
+    payload: EmailVerificationRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    accountServices = AccountServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return accountServices.resend_email_verification(payload=payload)
 
 
 
@@ -389,7 +441,12 @@ def link_google(
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
-    googleOauth = GoogleOauth()
+    googleOauth = GoogleOauth(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
     return googleOauth.link_google(
         payload=payload,
         request=request,

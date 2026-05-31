@@ -38,6 +38,7 @@ class NotificationTemplate:
 
         resolvers: Dict[str, Callable[[dict], Dict[str, Dict[str, str]]]] = {
             "auth.welcome": NotificationTemplate._welcome,
+            "auth.otp": NotificationTemplate._otp,
             "auth.password.reset.request": NotificationTemplate._password_reset_request,
             "auth.password.reset.success": NotificationTemplate._password_reset_success,
             "auth.password.changed": NotificationTemplate._password_changed,
@@ -95,6 +96,17 @@ class NotificationTemplate:
             "push": PushTemplate.welcome_push_template(name),
             "email": EmailTemplate.welcome_email_template(name),
             "sms": SMSTemplate.welcome_sms_template(name),
+        }
+
+    @staticmethod
+    def _otp(context: dict) -> Dict[str, Dict[str, str]]:
+        name = NotificationTemplate._name(context)
+        email = context.get("email") or context.get("email_address") or ""
+        otp = context.get("otp") or ""
+        return {
+            "push": PushTemplate.otp_push_template(name, email, otp),
+            "email": EmailTemplate.otp_email_template(name, email, otp),
+            "sms": SMSTemplate.otp_sms_template(name, email, otp),
         }
 
     @staticmethod

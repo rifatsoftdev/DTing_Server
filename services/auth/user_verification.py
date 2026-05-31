@@ -156,7 +156,7 @@ class UserVerificationService(TokenGenerators):
                     detail=String.SETTINGS_NOT_FOUND
                 )
 
-            if (settings.account_locked):
+            if (settings.account_deactivated):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=String.ACCOUNT_LOCKED
@@ -287,3 +287,8 @@ class UserVerificationService(TokenGenerators):
             )
 
 
+
+
+
+# ==============================================================================
+# ==============================================================================

@@ -1,14 +1,17 @@
+import smtplib
+
 from fastapi import HTTPException, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import timedelta
+from email.mime.text import MIMEText
 
 from app.constants import ENV, AnsiColor, String
-from app.enums import OTPMethod, OTPPurpose, TwoFactorType
-from app.model import OTPTable, SessionTable, TwoFactorTable, UserTable
-from app.schema import OTPRequest, GlobalResponse, VerifyOTPRequest
+from app.enums import NotificationType, OTPMethod, OTPPurpose, TwoFactorType
+from app.model import NotificationTable, OTPTable, SessionTable, TwoFactorTable, UserTable
+from app.schema import OTPRequest, GlobalResponse, VerifyOTPRequest, EmailVerificationRequest
 from app.utils import Generators, Hashing, Helpers, TwoFactorAuth
 from services.auth.token_service import TokenGenerators
-from services.notification.noticication_services import NotificationServices
+from services.notification.noticication_services import NotificationData, NotificationServices
 
 
 class OTPService(TokenGenerators):
@@ -19,10 +22,22 @@ class OTPService(TokenGenerators):
         request: Request,
         authorization: str
     ):
+        super().__init__(db)
         self.db = db
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
+
+    @staticmethod
+    def _is_expired(expires_at) -> bool:
+        if not expires_at:
+            return False
+
+        now = Helpers.utc6dhaka()
+        if expires_at.tzinfo is None:
+            now = now.replace(tzinfo=None)
+
+        return expires_at < now
 
     @staticmethod
     def _enum_value(value) -> str:
@@ -35,6 +50,39 @@ class OTPService(TokenGenerators):
             raise HTTPException(status_code=401, detail=String.TIME_LIMET_EXPAIRE)
 
         if token_payload.get("type") != "otp_token":
+            raise HTTPException(status_code=401, detail=String.INVALID_TOKEN_TYPE)
+
+        if not token_payload.get("user_id"):
+            raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+
+        return token_payload
+
+    def create_email_verification_token(
+        self,
+        user: UserTable,
+        device_id: str = None,
+        device_uuid: str = None,
+        requires_otp: bool = False
+    ) -> str:
+        return self._create_token(
+            data={
+                "user_id": user.user_id,
+                "email_address": user.email_address,
+                "device_id": device_id,
+                "device_uuid": device_uuid,
+                "requires_otp": requires_otp
+            },
+            token_type=String.EMAIL_VERIFICATION_TOKEN,
+            expire_min=ENV.OTP_TOKEN_EXPIRE_MIN
+        )
+
+    def _decode_email_verification_token(self, token: str) -> dict:
+        token_payload = self._decode_token(token)
+
+        if token_payload is None:
+            raise HTTPException(status_code=401, detail=String.INVALID_OR_EXPIRED_TOKEN)
+
+        if token_payload.get("type") != "email_verification":
             raise HTTPException(status_code=401, detail=String.INVALID_TOKEN_TYPE)
 
         if not token_payload.get("user_id"):
@@ -102,6 +150,195 @@ class OTPService(TokenGenerators):
         if purpose != OTPPurpose.LOGIN.value:
             raise HTTPException(status_code=400, detail="Invalid OTP purpose")
 
+    def _send_email_verification_otp(self, user: UserTable, otp: str) -> bool:
+        notification_service = NotificationServices(
+            db=self.db,
+            background_tasks=self.background_tasks
+        )
+
+        notification_data = NotificationData(
+            user_id=user.user_id,
+            template="auth.otp",
+            noty_type="otp",
+            context={
+                "name": user.full_name,
+                "email_address": user.email_address,
+                "otp": otp
+            },
+            push=False,
+            email=True,
+            sms=False
+        )
+
+        return notification_service.send_notification(notification_data)
+
+    def _send_email(self, to_email: str, subject: str, body: str) -> bool:
+        msg = MIMEText(body, "plain")
+        msg["Subject"] = subject
+        msg["From"] = ENV.EMAIL_ADDRESS
+        msg["To"] = to_email
+
+        try:
+            smtp_class = smtplib.SMTP_SSL if ENV.EMAIL_USE_SSL else smtplib.SMTP
+            with smtp_class(ENV.SMTP_SERVER, ENV.SMTP_PORT) as server:
+                if ENV.EMAIL_USE_TLS and not ENV.EMAIL_USE_SSL:
+                    server.starttls()
+                server.login(ENV.EMAIL_ADDRESS, ENV.EMAIL_PASSWORD)
+                server.sendmail(ENV.EMAIL_ADDRESS, to_email, msg.as_string())
+            return True
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Email send failed: {e}")
+            return False
+
+
+    def resend_email_verification(
+        self,
+        payload: EmailVerificationRequest
+    ) -> GlobalResponse:
+        try:
+            token_payload = self._decode_email_verification_token(payload.email_verification_token)
+            user = self._get_otp_user(token_payload.get("user_id"))
+
+            if token_payload.get("email_address") and user.email_address != token_payload.get("email_address"):
+                raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+
+            if user.email_verified:
+                return GlobalResponse(
+                    success=True,
+                    message="Email already verified",
+                    data={"email_verified": True}
+                )
+
+            if not token_payload.get("device_id") or not token_payload.get("device_uuid"):
+                raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+
+            new_token = self.create_email_verification_token(
+                user=user,
+                device_id=token_payload.get("device_id"),
+                device_uuid=token_payload.get("device_uuid"),
+                requires_otp=True
+            )
+
+            otp = Generators.generate_otp()
+            self.db.query(OTPTable).filter(
+                OTPTable.user_id == user.user_id
+            ).delete()
+
+            otp_record = OTPTable(
+                user_id=user.user_id,
+                otp_token=new_token,
+                device_id=token_payload.get("device_id"),
+                device_uuid=token_payload.get("device_uuid"),
+                delever_to=user.email_address,
+                otp_hash=Hashing.create_hash(otp),
+                expires_at=Helpers.utc6dhaka() + timedelta(minutes=ENV.OTP_TOKEN_EXPIRE_MIN)
+            )
+            self.db.add(otp_record)
+            self.db.flush()
+
+            email_sent = self._send_email_verification_otp(user, otp)
+            self.db.commit()
+
+            return GlobalResponse(
+                success=True,
+                message="Verification email sent" if email_sent else "Verification email could not be sent",
+                data={
+                    "email_sent": email_sent,
+                    "email_verification_token": new_token
+                },
+                next_step={
+                    "endpoint": "/auth/verify-new-user-email",
+                    "method": "POST",
+                    "payload": {
+                        "user_id": user.user_id,
+                        "otp": "otp",
+                        "email_verification_token": new_token,
+                        "device_id": token_payload.get("device_id"),
+                        "device_uuid": token_payload.get("device_uuid")
+                    }
+                }
+            )
+
+        except HTTPException:
+            self.db.rollback()
+            raise
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+    def verify_email(self, token: str) -> GlobalResponse:
+        try:
+            token_payload = self._decode_email_verification_token(token)
+
+            if token_payload.get("requires_otp"):
+                raise HTTPException(status_code=400, detail="OTP verification is required")
+
+            if not token_payload.get("email_address"):
+                raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+
+            user = self._get_otp_user(token_payload.get("user_id"))
+
+            if token_payload.get("email_address") and user.email_address != token_payload.get("email_address"):
+                raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+
+            send_welcome_notification = not user.email_verified
+            user.email_verified = True
+
+            if send_welcome_notification:
+                welcome_notification = NotificationTable(
+                    target_id=user.user_id,
+                    type=NotificationType.ALERT,
+                    title="Welcome to PocketPay! 🔐",
+                    body="Your account has been successfully set up. Your security is our priority—let’s get started."
+                )
+                self.db.add(welcome_notification)
+
+            self.db.commit()
+
+            if send_welcome_notification and self.background_tasks:
+                try:
+                    notification_service = NotificationServices(
+                        db=self.db,
+                        background_tasks=self.background_tasks,
+                        request=self.request,
+                        authorization=self.authorization
+                    )
+                    notification_service.send_notification(
+                        NotificationData(
+                            user_id=user.user_id,
+                            template="auth.welcome",
+                            context={
+                                "name": user.full_name,
+                            },
+                            noty_type=NotificationType.ALERT,
+                            push=True,
+                            sms=False,
+                            email=False
+                        )
+                    )
+                except Exception as e:
+                    print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Welcome notification failed: {e}")
+
+            return GlobalResponse(
+                success=True,
+                message="Email verified successfully",
+                data={"email_verified": True}
+            )
+
+        except HTTPException:
+            self.db.rollback()
+            raise
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
     def send_otp(
         self,
         payload: OTPRequest
@@ -154,17 +391,11 @@ class OTPService(TokenGenerators):
             # send OTP on user
             status = False
             if method == OTPMethod.EMAIL.value:
-                notification_service = NotificationServices(
-                    self.db,
-                    self.background_tasks,
-                )
-                status = notification_service.send_by_email(
+                status = self._send_email(
                     to_email=delever_to,
                     subject="Your OTP Code",
                     body=f"Your OTP code is {make_otp}. Please use this code to complete your verification."
                 )
-
-                status = True
             elif method == OTPMethod.SMS.value:
                 status = True
                 # otp_manager = SMSSent()
@@ -200,6 +431,7 @@ class OTPService(TokenGenerators):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
 
+
     def verify_otp(
         self,
         payload: VerifyOTPRequest
@@ -217,6 +449,7 @@ class OTPService(TokenGenerators):
             token_payload = self._decode_otp_request_token(otp_token)
             self._validate_otp_request(token_payload, method, purpose, device_id, device_uuid)
             user = self._get_otp_user(token_payload.get("user_id"))
+            send_welcome_notification = False
 
             if method == OTPMethod.TOTP.value:
                 self._verify_totp(user, otp)
@@ -228,7 +461,7 @@ class OTPService(TokenGenerators):
                 if not otp_record:
                     raise HTTPException(status_code=404, detail=String.OTP_NOT_FOUND)
 
-                if otp_record.expires_at and otp_record.expires_at < Helpers.utc6dhaka():
+                if self._is_expired(otp_record.expires_at):
                     self.db.delete(otp_record)
                     self.db.commit()
                     raise HTTPException(status_code=401, detail=String.TIME_LIMET_EXPAIRE)
@@ -244,6 +477,7 @@ class OTPService(TokenGenerators):
 
                 if not user.email_verified and method == OTPMethod.EMAIL.value:
                     user.email_verified = True
+                    send_welcome_notification = True
 
                 if not user.phone_verified and method == OTPMethod.SMS.value:
                     user.phone_verified = True
@@ -269,7 +503,7 @@ class OTPService(TokenGenerators):
                     "device_uuid": device_uuid
                 },
                 token_type="refresh",
-                expire_min=ENV.REFRESH_EXPIRE
+                expire_day=ENV.REFRESH_EXPIRE
             )
 
             session = self.db.query(SessionTable).filter(
@@ -305,6 +539,40 @@ class OTPService(TokenGenerators):
                 self.db.commit()
                 self.db.refresh(session)
 
+            if send_welcome_notification:
+                welcome_notification = NotificationTable(
+                    target_id=user.user_id,
+                    type=NotificationType.ALERT,
+                    title="Welcome to PocketPay! 🔐",
+                    body="Your account has been successfully set up. Your security is our priority—let’s get started."
+                )
+                self.db.add(welcome_notification)
+                self.db.commit()
+
+                if self.background_tasks:
+                    try:
+                        notification_service = NotificationServices(
+                            db=self.db,
+                            background_tasks=self.background_tasks,
+                            request=self.request,
+                            authorization=self.authorization
+                        )
+                        notification_service.send_notification(
+                            NotificationData(
+                                user_id=user.user_id,
+                                template="auth.welcome",
+                                context={
+                                    "name": user.full_name,
+                                },
+                                noty_type=NotificationType.ALERT,
+                                push=True,
+                                sms=False,
+                                email=False
+                            )
+                        )
+                    except Exception as e:
+                        print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Welcome notification failed: {e}")
+
             return GlobalResponse(
                 success=True,
                 message="OTP verified successfully",
@@ -327,4 +595,10 @@ class OTPService(TokenGenerators):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-    
+
+
+
+
+
+# ==============================================================================
+# ==============================================================================

@@ -5,11 +5,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
-
 from pathlib import Path
 
 from app.core.database import SessionLocal
@@ -49,7 +44,7 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# 
+# Configure authentication middleware
 app.add_middleware(
     AuthMiddleware,
     public_paths=[
@@ -71,20 +66,13 @@ app.add_middleware(
     ]
 )
 
-# 
+# Configure static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 TMP_DIR = Path("uploads/tmp")
 
+
 # 
-limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["100/minute"],
-    storage_uri=ENV.REDIS_URL,
-    headers_enabled=True,
-)
-
-
 @app.on_event("startup")
 def create_default_admin_on_startup():
     db = SessionLocal()
@@ -95,25 +83,6 @@ def create_default_admin_on_startup():
             request=None,
             authorization=None
         )
-
-        if all([ENV.DEFAULT_ADMIN_EMAIL, ENV.DEFAULT_ADMIN_PASSWORD, ENV.DEFAULT_ADMIN_NAME]):
-            setupServices.create_default_admin(
-                email=ENV.DEFAULT_ADMIN_EMAIL,
-                password=ENV.DEFAULT_ADMIN_PASSWORD,
-                full_name=ENV.DEFAULT_ADMIN_NAME
-            )
-        else:
-            print("Default admin skipped: DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, or DEFAULT_ADMIN_NAME is missing.")
-
-        setupServices.add_default_countries()
-
-        setupServices.create_default_user(
-            email=ENV.DEFAULT_USER_EMAIL,
-            password=ENV.DEFAULT_USER_PASSWORD,
-            full_name=ENV.DEFAULT_USER_NAME
-        )
-
-        setupServices.create_settings()
 
     finally:
         db.close()
@@ -166,13 +135,16 @@ async def root(
     # Helpers.authorization(authorization)
     # print(Hashing.create_hash("1s22s22p6"))
     return GlobalResponse(
+        status_code=status.HTTP_200_OK,
         success=True,
+        action="welcome",
         message="Welcome to PocketPay API",
         data={
             "app": "PocketPay",
             "version": ENV.VERSION,
             "description": "A complete digital wallet and payment solution"
-        }
+        },
+        next_step={}
     )
 
 

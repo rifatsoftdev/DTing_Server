@@ -8,6 +8,7 @@ from app.model.notification_table import NotificationTable
 from app.model.offer_table import OfferTable
 from app.model.otp_table import OTPTable
 from app.model.password_reset_table import ResetPasswordTable
+from app.model.services_table import ServicesTable
 from app.model.sessions_table import SessionTable
 from app.model.settings_table import SettingsTable
 from app.model.two_factor_table import TwoFactorTable

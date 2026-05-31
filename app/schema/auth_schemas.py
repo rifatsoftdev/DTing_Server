@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Optional
 from datetime import datetime
 
@@ -9,15 +9,9 @@ class GoogleLoginRequest(BaseModel):
     device_id: str
     device_uuid: str
 
-class FinalSetupRequest(BaseModel):
-    token_id: str
-    device_id: str
-    device_uuid: str
-    
-    phone_number: Optional[str] = None
-    country_code: Optional[str] = None
-    user_gender: Optional[str] = None
-    date_of_birth: Optional[datetime] = None
+
+class EmailVerificationRequest(BaseModel):
+    email_verification_token: str
     
 
 # Schemas for Login Request
@@ -25,9 +19,27 @@ class LoginRequest(BaseModel):
     email_address: Optional[EmailStr] = None
     phone_number: Optional[str] = None
     country_code: Optional[str] = None
-    user_password: str
+    user_password: str = Field(..., min_length=1)
     device_id: str
     device_uuid: str
+
+    @field_validator("phone_number", "country_code", "user_password", "device_id", "device_uuid")
+    @classmethod
+    def optional_strings_must_not_be_blank(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        if not value.strip():
+            raise ValueError("Field must not be blank")
+
+        return value.strip()
+
+    @model_validator(mode="after")
+    def email_or_phone_required(self):
+        if not self.email_address and not self.phone_number:
+            raise ValueError("Email address or phone number is required")
+
+        return self
 
 
 # Schemas for Logout Request
@@ -40,15 +52,44 @@ class LogoutRequest(BaseModel):
 
 # Schemas for Registration
 class RegisterRequest(BaseModel):
-    full_name: str
+    full_name: str = Field(..., min_length=1, max_length=30)
     email_address: EmailStr
     phone_number: str
     country_code: str
-    user_password: str
-    referral_account: Optional[str] = None
+    user_password: str = Field(..., min_length=8)
+    date_of_birth: Optional[datetime] = None
+    user_gender: Optional[str] = None
+
     device_id: str
     device_uuid: str
 
+    @field_validator("full_name", "phone_number", "country_code", "device_id", "device_uuid", "user_password")
+    @classmethod
+    def required_string_must_not_be_blank(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Field must not be blank")
+        return value.strip()
+
+    @field_validator("user_gender")
+    @classmethod
+    def validate_user_gender(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        normalized_value = value.strip().lower()
+        if normalized_value not in {"male", "female", "other", "undefined"}:
+            raise ValueError("Invalid gender value")
+
+        return normalized_value
+
+
+# Schema for OTP Request
+class NewUserEmailVerificationRequest(BaseModel):
+    user_id: str
+    otp: str
+    email_verification_token: str
+    device_id: str
+    device_uuid: str
 
 
 # Schema for get new access token

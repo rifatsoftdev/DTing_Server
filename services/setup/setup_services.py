@@ -1,18 +1,21 @@
 from datetime import timedelta
 
 from fastapi import BackgroundTasks, HTTPException, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.constants import AnsiColor, String
+from app.constants import AnsiColor, String, ENV
 from app.enums import NotificationType, ActivityStatus
-from app.model import SessionTable, SettingsTable, AdminTable, CountryTable, UserTable, AppConfigTable
+from app.model import SessionTable, SettingsTable, AdminTable, CountryTable, UserTable, AppConfigTable, ServicesTable
 from app.schema import GlobalResponse, CancelDeleteAccountRequest
 from app.utils import Generators, Hashing
+
+from services.auth.signup_service import RegistrationService
 
 from app.model.admin_table import AdminRole
 
 
-class SetupServices:
+class SetupServices(RegistrationService):
     def __init__(
         self,
         db: Session,
@@ -24,13 +27,21 @@ class SetupServices:
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
+
+        super().__init__(
+            db=db,
+            background_tasks=background_tasks,
+            request=request,
+            authorization=authorization
+        )
+
+        self.create_default_admin()
+        self.add_default_countries()
+        self.create_default_user()
+        self.create_settings()
+        self.create_services()
     
-    def create_default_admin(
-        self,
-        email: str,
-        password: str,
-        full_name: str
-    ):
+    def create_default_admin(self) -> None:
         """
         Create default admin automatically when new DC/server is created.
         """
@@ -42,10 +53,10 @@ class SetupServices:
 
         admin = AdminTable(
             admin_id=Generators.generate_id("admin"),
-            email=email,
-            password_hash=Hashing.create_hash(password),
+            email=ENV.DEFAULT_ADMIN_EMAIL,
+            password_hash=Hashing.create_hash(ENV.DEFAULT_ADMIN_PASSWORD),
 
-            full_name=full_name,
+            full_name=ENV.DEFAULT_ADMIN_NAME,
             profile_image_url=None,
 
             totp_enabled=False,
@@ -67,17 +78,16 @@ class SetupServices:
 
         return admin
 
-    def create_default_user(
-        self,
-        email: str,
-        password: str,
-        full_name: str
-    ):
+    def create_default_user(self) -> None:
         """
         Create default user automatically when new DC/server is created.
         """
-        if not all([email, password, full_name]):
-            print("Default user skipped: DEFAULT_USER_EMAIL, DEFAULT_USER_PASSWORD, or DEFAULT_USER_NAME is missing.")
+        email_address: str = ENV.DEFAULT_USER_EMAIL
+        full_name: str = ENV.DEFAULT_USER_NAME
+        password: str = ENV.DEFAULT_USER_PASSWORD
+
+        if not all([email_address, password, full_name]):
+            print(f"{AnsiColor.RED}Default user skipped: DEFAULT_USER_EMAIL, DEFAULT_USER_PASSWORD, or DEFAULT_USER_NAME is missing.{AnsiColor.RESET}")
             return None
 
         country = self.db.query(CountryTable).filter(
@@ -99,57 +109,29 @@ class SetupServices:
             self.db.flush()
 
         existing_user = self.db.query(UserTable).filter(
-            UserTable.user_id == String.SYSTEM_USER_ID
+            or_(
+                UserTable.user_id == String.SYSTEM_USER_ID,
+                UserTable.email_address == email_address
+            )
         ).first()
 
         if not existing_user:
-            existing_user = UserTable(
-                user_id=String.SYSTEM_USER_ID,
+            user: UserTable = self._create_new_user(
                 full_name=full_name,
-                email_address=email,
-                country_code=country.country_code,
-                phone_number="01234567890",
-                password_hash=Hashing.create_hash(password),
-                profile_image_url=String.DEMO_PROFILE_IMAGE_URL,
-                phone_verified=True,
-                email_verified=True
+                email_address=email_address,
+                phone_number=ENV.DEFAULT_USER_PHONE,
+                country=country,
+                user_password=password,
+                device_id="server",
+                device_uuid="server"
             )
-            self.db.add(existing_user)
-            self.db.flush()
 
-        settings = self.db.query(SettingsTable).filter(
-            SettingsTable.user_id == existing_user.user_id
-        ).first()
+            user.email_verified = True
+            user.phone_verified = True
 
-        if not settings:
-            self.db.add(SettingsTable(
-                user_id=existing_user.user_id,
-                allow_notifications=True,
-                dark_mode=False,
-                country=country.country_iso,
-                language="en",
-                account_locked=False,
-                
-            ))
-
-        session = self.db.query(SessionTable).filter(
-            SessionTable.user_id == existing_user.user_id
-        ).first()
-
-        if not session:
-            self.db.add(SessionTable(
-                user_id=existing_user.user_id,
-                session_id=Generators.generate_id("session"),
-                device_id="system",
-                device_uuid="system",
-                last_ip_address="127.0.0.1"
-            ))
-
-        self.db.commit()
-        self.db.refresh(existing_user)
-
-        return existing_user
-
+            self.db.commit()
+            self.db.refresh(user)
+        
     def add_default_countries(self) -> None:
         """
         Add default countries to the database when new DC/server is created.
@@ -217,7 +199,7 @@ class SetupServices:
 
         self.db.commit()
 
-    def create_settings(self):
+    def create_settings(self) -> None:
         settings = {
             "email_settings": {
                 "enabled": True
@@ -253,5 +235,12 @@ class SetupServices:
 
         return True
 
+    def create_services(self) -> None:
+        pass
 
 
+
+
+
+# ==============================================================================
+# ==============================================================================

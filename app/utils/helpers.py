@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 
@@ -38,6 +38,11 @@ class Helpers:
     def print_payload(payload):
         for i, j in payload:
             print(f"{i} : {j}")
+    
+    @staticmethod
+    def minutes_to_timedelta(minutes: int):
+        return timedelta(minutes=minutes)
+
 
 # if __name__ == "__main__":
 #     print(Helpers.utc6dhaka())

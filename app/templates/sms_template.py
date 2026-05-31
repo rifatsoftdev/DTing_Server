@@ -205,7 +205,7 @@ class SMSTemplate:
 
 
 
-if __name__ == "__main__":
-    # Example usage
-    template = SMSTemplate.welcome_sms_template("John Doe")
-    print(template)
+# if __name__ == "__main__":
+#     # Example usage
+#     template = SMSTemplate.welcome_sms_template("John Doe")
+#     print(template)

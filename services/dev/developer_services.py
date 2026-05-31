@@ -323,3 +323,11 @@ class DeveloperServices:
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+
+
+
+
+# ==============================================================================
+# ==============================================================================

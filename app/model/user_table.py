@@ -15,7 +15,7 @@ class UserTable(Base):
 
     full_name = Column(String(30), nullable=False)
     username = Column(String(30), unique=True, index=True, nullable=True)
-    email_address = Column(String(30), unique=True, index=True, nullable=False)
+    email_address = Column(String(255), unique=True, index=True, nullable=False)
 
     country_code = Column(
         String(4),

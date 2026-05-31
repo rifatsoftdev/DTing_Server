@@ -7,7 +7,7 @@ from app.model import UserTable, SessionTable, NotificationTable
 from app.enums import NotificationType
 from app.constants import ENV, String, AnsiColor
 from app.utils import Hashing, Helpers
-from services import RegistrationService
+from services.auth.signup_service import RegistrationService
 from app.schema import GoogleLoginRequest, GlobalResponse, LinkGoogleAccountRequest
 
 from services.notification.noticication_services import NotificationServices, NotificationData
@@ -49,8 +49,6 @@ class GoogleOauth(TokenGenerators):
             google_id = idinfo["sub"]
             email_address = idinfo.get("email")
             email_verified = idinfo.get("email_verified")
-            full_name =  idinfo.get("name")
-            profile_image_url = idinfo.get("picture")
 
             # print(google_id)
 
@@ -80,49 +78,34 @@ class GoogleOauth(TokenGenerators):
                 email=email_address
             )
 
-            # login
-            if existing_user:
-                if (existing_user.link_google and existing_user.link_google != google_id):
-                    raise HTTPException(
-                        status_code=409,
-                        detail=String.USER_ALRADY_EXISTS
-                    )
-                
-                if not existing_user.link_google:
-                    existing_user.link_google = google_id
-                    self.db.commit()
-                    self.db.refresh(existing_user)
-            
-            # registration
-            else:
-                created_user = registrationService.new_user(
-                    full_name=full_name,
-                    email_address=email_address,
+            if not existing_user:
+                raise HTTPException(
+                    status_code=404,
+                    detail=String.USER_NOT_FOUND
+                )
+
+            if not existing_user.link_google:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Google account is not connected"
+                )
+
+            if existing_user.link_google != google_id:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Google account does not match"
+                )
+
+            if not existing_user.email_verified:
+                response = registrationService.email_verification_required_response(
+                    user=existing_user,
                     device_id=device_id,
-                    device_uuid=device_uuid,
-                    profile_image_url=profile_image_url,
-                    ip=ip,
-                    country_iso=None
+                    device_uuid=device_uuid
                 )
-
-                # email verified
-                created_user.email_verified = True
-                created_user.link_google = google_id
-
                 self.db.commit()
-                self.db.refresh(created_user)
+                return response
 
-                # reward
-                reward = ENV.NEW_USER_REWARD_WITH_NO_REFERRAL
-
-                self.send_reward(
-                    user_id=created_user.user_id,
-                    title="Welcome Reward",
-                    body=f"Welcome to PocketPay! You have rechived a reward of {reward} BD.",
-                    amount=reward
-                )
-            
-            user = existing_user if existing_user else created_user
+            user = existing_user
 
             # Generate access token
             access_token = self._create_token(
@@ -182,8 +165,6 @@ class GoogleOauth(TokenGenerators):
 
                 # all commit and refresh
                 self.db.commit()
-                if not existing_user:
-                    self.db.refresh(created_user)
                 self.db.refresh(session)
             
             return GlobalResponse(
@@ -240,6 +221,7 @@ class GoogleOauth(TokenGenerators):
                 ENV.GOOGLE_CLIENT_ID
             )
 
+            google_id = idinfo["sub"]
             email_address = idinfo.get("email")
             email_verified = idinfo.get("email_verified")
             full_name = idinfo.get("name")
@@ -248,11 +230,17 @@ class GoogleOauth(TokenGenerators):
             if not email_address:
                 raise HTTPException(status_code=400, detail="Google account email not found")
 
+            if not email_verified:
+                raise HTTPException(status_code=400, detail="Google account email is not verified")
+
             if user.email_address.lower() != email_address.lower():
                 raise HTTPException(status_code=409, detail="Google account email does not match")
 
-            if email_verified:
-                user.email_verified = True
+            if user.link_google and user.link_google != google_id:
+                raise HTTPException(status_code=409, detail="Another Google account is already connected")
+
+            user.email_verified = True
+            user.link_google = google_id
 
             if profile_image_url and not user.profile_image_url:
                 user.profile_image_url = profile_image_url
@@ -310,3 +298,8 @@ class GoogleOauth(TokenGenerators):
 
 
 
+
+
+
+# ==============================================================================
+# ==============================================================================

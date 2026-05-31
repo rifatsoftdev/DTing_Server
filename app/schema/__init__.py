@@ -1,9 +1,9 @@
 from app.schema.auth_schemas import (
-    LoginRequest, RegisterRequest, AccessTokenRequest, FinalSetupRequest,
+    LoginRequest, RegisterRequest, AccessTokenRequest, EmailVerificationRequest,
     GoogleLoginRequest,  LogoutAllRequest, DeleteAccountRequest,
     LogoutRequest, ForgetPasswordRequest, ResetPasswordRequest,
     CancelDeleteAccountRequest, ChangePasswordRequest, LinkGoogleAccountRequest,
-    FCMTokenRequest
+    FCMTokenRequest, NewUserEmailVerificationRequest
 )
 from app.schema.country_schema import CountryOut, NewCountryRequest, DisableCountryRequest
 from app.schema.dev_schema import PaymentRequest
@@ -20,4 +20,3 @@ from app.schema.tfa_schema import (
     SMSTFASetupRequest, SMSTFAConfirmRequest, SMSTFADisableRequest,
 )
 from app.schema.user_schemas import KYCRequest, KYCUpdateRequest
-

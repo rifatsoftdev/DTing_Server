@@ -10,7 +10,7 @@ from app.utils import Generators, Hashing
 from services.auth.user_verification import UserVerificationService
 
 
-class CountryService:
+class CountryService():
     def __init__(
         self,
         db: Session,
@@ -123,7 +123,9 @@ class CountryService:
             countrys = [CountryOut.model_validate(p) for p in country]
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="get_active_countries",
                 message="Supported Countries",
                 data={
                     "countries": countrys
@@ -381,3 +383,7 @@ class CountryService:
 
 
 
+
+
+# ==============================================================================
+# ==============================================================================

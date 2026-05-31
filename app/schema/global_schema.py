@@ -13,7 +13,10 @@ class GlobalRequest(BaseModel):
 
 # Global response
 class GlobalResponse(BaseModel):
+    status_code: Optional[int]
     success: bool
+    action: Optional[str] = None
     message: str
     data: dict
+    next_step: Optional[dict] = None
     pagination: Optional[dict] = None

@@ -12,16 +12,40 @@ class SettingsTable(Base):
     user_id = Column(String, ForeignKey("user_list.user_id"), primary_key=True)
 
     # Settins
-    allow_notifications = Column(Boolean, default=True)
     dark_mode = Column(Boolean, default=False)
-    country = Column(String, default="BD")
     language = Column(String, default="en")
+
+    # Notification preferences
+    email_notifications = Column(Boolean, default=True)
+    sms_notifications = Column(Boolean, default=False)
+    push_notifications = Column(Boolean, default=True)
+    marketing_notifications = Column(Boolean, default=False)
+
+    # Security preferences
+    login_alerts = Column(Boolean, default=True)
+    new_device_alerts = Column(Boolean, default=True)
+    password_change_alerts = Column(Boolean, default=True)
+
+    # Privacy
+    profile_visibility = Column(String, default="private")  # public/private
+    show_email = Column(Boolean, default=False)
+    show_phone = Column(Boolean, default=False)
+
+    # Localization / UI
+    timezone = Column(String, default="Asia/Dhaka")
+    currency = Column(String, default="BDT")
+    date_format = Column(String, default="YYYY-MM-DD")
+
+    # Account state
+    account_deactivated = Column(Boolean, default=False)
+    deactivated_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Security timestamps
+    last_password_changed_at = Column(DateTime(timezone=True), nullable=True)
+    biometric_enabled_at = Column(DateTime(timezone=True), nullable=True)
 
     biometric_enabled = Column(Boolean, nullable=False, default=False)
     biometric_secret = Column(String, nullable=True)
-
-    # Account Deactived
-    account_locked = Column(Boolean, default=False)
     
     updated_at = Column(DateTime(timezone=True), onupdate=utc6dhaka)
     created_at = Column(DateTime(timezone=True), default=utc6dhaka)

@@ -71,7 +71,7 @@ class ENV:
     SALT: bytes = os.getenv("SALT", "default_salt").encode()
 
     # Firebase configuration
-    POCKETPAY_ADMINSDK: str = os.getenv("POCKETPAY_ADMINSDK", "{}")
+    FIREBASE_ADMINSDK: str = os.getenv("FIREBASE_ADMINSDK", "{}")
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
 
     # CORS configuration

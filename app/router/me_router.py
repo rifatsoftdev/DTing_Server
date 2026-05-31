@@ -1,14 +1,12 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Request, Header, Form, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, Header, Request, UploadFile
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Any, Dict, Optional
 from datetime import date
 
 from app.core.database import get_db
 
-from app.constants import AnsiColor, String, ENV
 from app.schema import GlobalResponse
 from services import UserServices
-from app.utils import Helpers
 
 
 
@@ -16,8 +14,25 @@ me_router = APIRouter()
 
 
 
-ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
-MAX_SIZE = 5 * 1024 * 1024  # 5MB
+# ==============================================================================
+
+@me_router.get("", response_model=GlobalResponse)
+@me_router.get("/", response_model=GlobalResponse)
+async def me(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    userServices = UserServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return userServices.get_me()
+
 
 
 
@@ -37,29 +52,8 @@ async def profile(
         authorization=authorization
     )
 
-    return userServices.profile()
+    return userServices.get_profile()
     
-
-
-
-# ==============================================================================
-
-@me_router.get("/sessions", response_model=GlobalResponse)
-async def sessions(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    userServices = UserServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return userServices.sessions()
-
 
 
 
@@ -79,13 +73,62 @@ async def settings(
         authorization=authorization
     )
 
-    return userServices.settings()   
+    return userServices.get_settings()
 
 
 
 
 # ==============================================================================
 
+@me_router.patch("/settings", response_model=GlobalResponse)
+async def update_settings(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    payload: Dict[str, Any] = Body(...),
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    userServices = UserServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return userServices.update_settings(payload=payload)
+
+
+
+
+# ==============================================================================
+
+@me_router.get("/sessions", response_model=GlobalResponse)
+async def sessions(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    start: int = 0,
+    end: int = 5,
+    db: Session = Depends(get_db)
+):
+    userServices = UserServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return userServices.get_sessions(
+        start=start,
+        end=end
+    )
+
+
+
+
+# ==============================================================================
+
+@me_router.get("/profile/edit-info", response_model=GlobalResponse)
 @me_router.get("/edit-info", response_model=GlobalResponse)
 async def edit_info(
     request: Request,
@@ -106,7 +149,7 @@ async def edit_info(
 
 # ==============================================================================
 
-@me_router.post("/profile/update")
+@me_router.post("/profile/update", response_model=GlobalResponse)
 async def update_profile(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -151,8 +194,29 @@ async def update_profile(
 
 # ==============================================================================
 
-@me_router.post("/kyc/submit")
-async def totp_enable(
+@me_router.get("/kyc/status", response_model=GlobalResponse)
+async def kyc_status(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    userServices = UserServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return userServices.get_kyc_status()
+
+
+
+
+# ==============================================================================
+
+@me_router.post("/kyc/submit", response_model=GlobalResponse)
+async def kyc_submit(
     request: Request,
     background_tasks: BackgroundTasks,
     authorization: str = Header(None),

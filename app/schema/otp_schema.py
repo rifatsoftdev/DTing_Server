@@ -15,8 +15,8 @@ class OTPRequest(BaseModel):
 class VerifyOTPRequest(BaseModel):
     otp_token: str = Field(min_length=32)
 
-    otp: str = Field(min_length=4, max_length=10)
-
+    otp: str = Field(min_length=6, max_length=10)
+    
     method: OTPMethod
     purpose: OTPPurpose
 

@@ -25,10 +25,7 @@ class UserRepository:
             filters.append(UserTable.email_address == email)
 
         if phone:
-            phone_filter = UserTable.phone_number == phone
-            if country_code:
-                phone_filter = phone_filter & (UserTable.country_code == country_code)
-            filters.append(phone_filter)
+            filters.append(UserTable.phone_number == phone)
 
         if not filters:
             return False
@@ -36,6 +33,10 @@ class UserRepository:
         user = self.db.query(UserTable).filter(or_(*filters)).first()
 
         return user
-    
-    
-    
+
+
+
+
+
+# ==============================================================================
+# ==============================================================================

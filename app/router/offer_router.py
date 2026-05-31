@@ -1,11 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
-from app.constants import AnsiColor, String
 from app.core.database import get_db
-from app.model import OfferTable
-from app.schema import GlobalResponse, OfferCreateRequest, OfferUpdateRequest
-from app.utils.helpers import utc6dhaka
+from app.schema import OfferCreateRequest, OfferUpdateRequest
 from services.offer.offer_services import OfferServices
 
 

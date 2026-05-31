@@ -1,5 +1,6 @@
 import uvicorn
 import socket
+import os
 
 
 def get_ip():
