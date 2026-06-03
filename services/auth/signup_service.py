@@ -13,8 +13,11 @@ from app.schema import RegisterRequest, GlobalResponse
 
 from services.auth.token_service import TokenGenerators
 from services.auth.user_repository import UserRepository
-from services.notification.noticication_services import NotificationServices, NotificationData
-
+from services.notification.notification_services import (
+    NotificationServices,
+    NotificationData,
+    NotificationEvent,
+)
 
 
 class RegistrationService(UserRepository, TokenGenerators):
@@ -217,27 +220,6 @@ class RegistrationService(UserRepository, TokenGenerators):
             }
         )
 
-        if user.email_address:
-            notification_service = NotificationServices(
-                db=self.db,
-                background_tasks=self.background_tasks
-            )
-
-            notification_data = NotificationData(
-                user_id=user.user_id,
-                template="auth.otp",
-                noty_type="otp",
-                context={
-                    "name": user.full_name,
-                    "email_address": user.email_address,
-                    "otp": otp
-                },
-                push=False,
-                email=True,
-                sms=False
-            )
-            email_sent = notification_service.send_notification(notification_data)
-
         self.db.query(OTPTable).filter(
             OTPTable.user_id == user.user_id
         ).delete()
@@ -254,6 +236,40 @@ class RegistrationService(UserRepository, TokenGenerators):
         self.db.add(new_otp_record)
         self.db.flush()
 
+        if user.email_address:
+            notification_service = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
+
+            notification_service = NotificationServices(
+            db=self.db,
+            background_tasks=self.background_tasks,
+            request=self.request,
+            authorization=self.authorization,
+        )
+
+        notification_service.send_notification(
+            NotificationData(
+                event=NotificationEvent.OTP,
+                user_id=user.user_id,
+                email_address=user.email_address,
+                # fcm_token=session.fcm_token,  # optional, না দিলেও session থেকে খুঁজবে
+                email=True,
+                push=True,
+                sms=False,
+                context={
+                    "name": user.full_name,
+                    "email": user.email_address,
+                    "otp": otp,
+                },
+                payload={
+                    "type": "otp",
+                    "user_id": user.user_id,
+                }
+            )
+        )
+        
         return GlobalResponse(
             status_code=status.HTTP_201_CREATED,
             success=True,

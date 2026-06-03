@@ -12,9 +12,16 @@ def _get_bool(name: str, default: bool = False) -> bool:
 
 
 class ENV:
-    # Public application URL
+    # Server Version and Debug mode
+    VERSION: str = os.getenv("VERSION", "2.0.8")
+    DEBUG: bool = os.getenv("DEBUG", "True") == "True"
     APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:8000")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
 
+    # Service Charge configuration
+    SERVICE_CHARGE: float = float(os.getenv("SERVICE_CHARGE", "1.0"))
+    
     # DataBase configuration
     DATABASE_URL: str= os.getenv("DATABASE_URL", "sqlite:///./database.db")
 
@@ -22,7 +29,7 @@ class ENV:
     EMAIL_ADDRESS: str = os.getenv("EMAIL_ADDRESS", "")
     EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "")
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
     EMAIL_USE_TLS: bool = _get_bool("EMAIL_USE_TLS", True)
     EMAIL_USE_SSL: bool = _get_bool("EMAIL_USE_SSL", False)
 
@@ -31,6 +38,11 @@ class ENV:
     AUTH_TOKEN: str = os.getenv("AUTH_TOKEN", "")
     TWILIO_PHONE_NUMBER: str = os.getenv("TWILIO_PHONE_NUMBER", "")
 
+    # Cloudinary configuration
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
+    
     # JWT configuration
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
@@ -50,35 +62,13 @@ class ENV:
     SMS_MAX_ATTEMPTS: int = int(os.getenv("SMS_MAX_ATTEMPTS", "5"))
     SMS_WORKER_POLL_TIMEOUT: int = int(os.getenv("SMS_WORKER_POLL_TIMEOUT", "5"))
 
-    # Rewards configuration
-    NEW_USER_REWARD_WITH_REFERRAL: int = int(os.getenv("NEW_USER_REWARD_WITH_REFERRAL", "100"))
-    NEW_USER_REWARD_WITH_NO_REFERRAL: int = int(os.getenv("NEW_USER_REWARD_WITH_NO_REFERRAL", "50"))
-    USER_REFERRAL_REWARD: int = int(os.getenv("USER_REFERRAL_REWARD", "20"))
-
-    # Service Charge configuration
-    SERVICE_CHARGE: float = float(os.getenv("SERVICE_CHARGE", "1.0"))
-
-    # Server Version and Debug mode
-    VERSION: str = os.getenv("VERSION", "2.0.8")
-    DEBUG: bool = os.getenv("DEBUG", "True") == "True"
-
-    # Cloudinary configuration
-    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
-    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
-    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
-
     # Salt for password hashing
     SALT: bytes = os.getenv("SALT", "default_salt").encode()
 
     # Firebase configuration
-    FIREBASE_ADMINSDK: str = os.getenv("FIREBASE_ADMINSDK", "{}")
+    FIREBASE_SERVICE_ACCOUNT: str = os.getenv("FIREBASE_SERVICE_ACCOUNT", "")
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
-
-    # CORS configuration
-    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
-
-    # Logging configuration
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
     # Default admin
     DEFAULT_ADMIN_EMAIL: str = os.getenv("DEFAULT_ADMIN_EMAIL", "dting@gmail.com")
@@ -92,18 +82,7 @@ class ENV:
     DEFAULT_USER_PASSWORD: str = os.getenv("DEFAULT_USER_PASSWORD", "User@123")
     DEFAULT_USER_NAME: str = os.getenv("DEFAULT_USER_NAME", "DTing")
 
-    # External API
-    SMS_SERVER: str = os.getenv("SMS_SERVER", "http://localhost:8001")
-
-
-
-
-
-
-
-
-
-
+    
 # if __name__ == "__main__":
 #     print(ENV.EMAIL_USE_TLS)
 #     print(ENV.EMAIL_USE_SSL)

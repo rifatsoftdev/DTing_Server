@@ -209,7 +209,9 @@ class CountryService():
             self.db.refresh(country)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="add_new_country",
                 message="Country Added Successfully",
                 data={
                     "country_id": country.counrty_id,
@@ -218,6 +220,10 @@ class CountryService():
                     "flag_emoji": country.flag_emoji,
                     "currency": country.currency,
                     "currency_symbol": country.currency_symbol
+                },
+                next_step={
+                    "action": "wait_for_activation",
+                    "message": "Wait for your Country ID account to be activated by the admin. You will receive a notification once it's activated."
                 }
             )
 
@@ -262,9 +268,12 @@ class CountryService():
             self.db.refresh(country)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="inactive_country",
                 message="Country INACTIVE Successfully",
-                data={}
+                data={},
+                next_step={}
             )
 
         except HTTPException:
@@ -308,9 +317,12 @@ class CountryService():
             self.db.refresh(country)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="active_country",
                 message="Country ACTIVE Successfully",
-                data={}
+                data={},
+                next_step={}
             )
 
         except HTTPException:
@@ -360,7 +372,9 @@ class CountryService():
             self.db.refresh(country)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="edit_country",
                 message="Country Updated Successfully",
                 data={
                     "country_id": country.counrty_id,
@@ -369,7 +383,8 @@ class CountryService():
                     "flag_emoji": country.flag_emoji,
                     "currency": country.currency,
                     "currency_symbol": country.currency_symbol
-                }
+                },
+                next_step={}
             )
 
         except HTTPException:

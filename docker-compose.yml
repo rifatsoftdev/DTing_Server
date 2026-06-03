@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   app:
+    image: rifatsoftdev/dting-auth
     build: .
     container_name: dting-auth
     stdin_open: true

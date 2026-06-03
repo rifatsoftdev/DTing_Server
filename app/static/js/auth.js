@@ -138,6 +138,65 @@ async function verifyOTP({
     }
 }
 
+async function verifyNewUserEmail({
+    user_id,
+    otp,
+    email_verification_token
+}) {
+    const url = `${BASE_URL}/auth/verify-new-user-email`;
+    const { device_id, device_uuid } = resolveDeviceIdentity();
+    const data = {
+        user_id,
+        otp,
+        email_verification_token,
+        device_id,
+        device_uuid
+    };
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+        const message = await parseResponseError(response);
+        throw new Error(message);
+    }
+
+    const raw = await response.text();
+    try {
+        return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+        throw new Error("Server returned non-JSON response. Check backend logs/routes.");
+    }
+}
+
+async function resendNewUserEmailVerification({
+    email_verification_token
+}) {
+    const url = `${BASE_URL}/auth/resend-verification-email`;
+    const data = { email_verification_token };
+
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+        const message = await parseResponseError(response);
+        throw new Error(message);
+    }
+
+    const raw = await response.text();
+    try {
+        return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+        throw new Error("Server returned non-JSON response. Check backend logs/routes.");
+    }
+}
+
 function persistAuthSession({
     user_id,
     access_token,

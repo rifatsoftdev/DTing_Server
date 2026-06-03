@@ -1,4 +1,4 @@
-from fastapi import Request, HTTPException, BackgroundTasks
+from fastapi import Request, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from google.oauth2 import id_token
 from google.auth.transport import requests
@@ -10,7 +10,7 @@ from app.utils import Hashing, Helpers
 from services.auth.signup_service import RegistrationService
 from app.schema import GoogleLoginRequest, GlobalResponse, LinkGoogleAccountRequest
 
-from services.notification.noticication_services import NotificationServices, NotificationData
+from services.notification.notification_services import NotificationServices, NotificationData, NotificationEvent
 
 from services.auth.user_verification import UserVerificationService
 from services.auth.token_service import TokenGenerators
@@ -30,11 +30,9 @@ class GoogleOauth(TokenGenerators):
         self.authorization = authorization
         super().__init__(self.db)
 
-    def google_login(
-        self,
-        payload: GoogleLoginRequest
-    ) -> GlobalResponse:
+    def google_login(self, payload: GoogleLoginRequest) -> GlobalResponse:
         try:
+            Helpers.print_payload(payload)
             token_id = payload.token_id
             device_id = payload.device_id
             device_uuid = payload.device_uuid
@@ -92,7 +90,7 @@ class GoogleOauth(TokenGenerators):
 
             if existing_user.link_google != google_id:
                 raise HTTPException(
-                    status_code=401,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Google account does not match"
                 )
 
@@ -168,7 +166,9 @@ class GoogleOauth(TokenGenerators):
                 self.db.refresh(session)
             
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="login",
                 message="Login Successful",
                 data={
                     "user_id": user.user_id,
@@ -176,7 +176,8 @@ class GoogleOauth(TokenGenerators):
                     "refresh_token": refresh_token,
                     "email_address": user.email_address,
                     "phone_number": None
-                }
+                },
+                next_step={}
             )
         
         except HTTPException:
@@ -185,28 +186,29 @@ class GoogleOauth(TokenGenerators):
 
         except ValueError:
             self.db.rollback()
-            raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+            raise HTTPException(
+                status_code=401,
+                detail=String.INVALID_TOKEN
+            )
 
         except Exception as e:
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+            raise HTTPException(
+                status_code=500,
+                detail=String.SERVER_ERROR
+            )
 
-    def link_google(
-        self,
-        payload: LinkGoogleAccountRequest,
-        request: Request,
-        background_tasks: BackgroundTasks,
-        db: Session
-    ):
+    def link_google(self, payload: LinkGoogleAccountRequest) -> GlobalResponse:
         try:
+            # Step 1: Verify user and token
             user_id: str = payload.user_id
             access_token: str = payload.access_token
             android_id: str = payload.device_id
             android_uuid: str = payload.device_uuid
             token_id: str = payload.token_id
 
-            user_verification_service = UserVerificationService(db)
+            user_verification_service = UserVerificationService()
 
             user = user_verification_service.verify_user(
                 user_id=user_id,
@@ -228,16 +230,28 @@ class GoogleOauth(TokenGenerators):
             profile_image_url = idinfo.get("picture")
 
             if not email_address:
-                raise HTTPException(status_code=400, detail="Google account email not found")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Google account email not found"
+                )
 
             if not email_verified:
-                raise HTTPException(status_code=400, detail="Google account email is not verified")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Google account email is not verified"
+                )
 
             if user.email_address.lower() != email_address.lower():
-                raise HTTPException(status_code=409, detail="Google account email does not match")
+                raise HTTPException(
+                    status_code=409,
+                    detail="Google account email does not match"
+                )
 
             if user.link_google and user.link_google != google_id:
-                raise HTTPException(status_code=409, detail="Another Google account is already connected")
+                raise HTTPException(
+                    status_code=409,
+                    detail="Another Google account is already connected"
+                )
 
             user.email_verified = True
             user.link_google = google_id
@@ -248,43 +262,49 @@ class GoogleOauth(TokenGenerators):
             if full_name and not user.full_name:
                 user.full_name = full_name
 
-            ip: str = request.client.host
+            ip: str = self.request.client.host
 
+            # Step 2: Create notification
             new_notification = NotificationTable(
                 target_id=user.user_id,
                 type=NotificationType.ALERT,
                 title="Google Account Linked",
                 body=f"Your Google account was linked from IP {ip}."
             )
-            db.add(new_notification)
-            db.flush()
+            self.db.add(new_notification)
+            self.db.flush()
 
-            notificationServices = NotificationServices(
-                db=db,
-                background_tasks=background_tasks
+            # Step 3: Send Notification
+            notification_service = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization,
             )
 
-            notificationServices.send_notification(
+            notification_service.send_notification(
                 NotificationData(
+                    event=NotificationEvent.LINK_GOOGLE,
                     user_id=user.user_id,
-                    title="Google Account Linked",
-                    template="admin.custom",
-                    context={
-                        "body": "Your Google account was linked successfully.",
-                    },
-                    noty_type=NotificationType.ALERT,
+                    email_address=user.email_address,
+                    # fcm_token=session.fcm_token,  # optional
+                    email=True,
                     push=True,
                     sms=False,
-                    email=False
+                    context={},
+                    payload={}
                 )
             )
 
-            db.commit()
-            db.refresh(user)
-            db.refresh(new_notification)
+            self.db.commit()
+            self.db.refresh(user)
+            self.db.refresh(new_notification)
 
+            # Step 4: Return response
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="link_google",
                 message="Google account linked successfully",
                 data={}
             )
@@ -294,7 +314,10 @@ class GoogleOauth(TokenGenerators):
 
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+            raise HTTPException(
+                status_code=500,
+                detail=String.SERVER_ERROR
+            )
 
 
 

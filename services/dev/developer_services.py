@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import HTTPException, Request, BackgroundTasks, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from decimal import Decimal
@@ -10,8 +10,8 @@ from app.model import DevTable, UserTable
 from app.utils import Generators, Helpers
 
 from services.auth.user_verification import UserVerificationService
-from services.notification.noticication_services import NotificationServices, NotificationData
-from app.router.notify_router import check_online_user
+from services.notification.notification_services import NotificationServices
+from services.notification.websocket_push_manager import NotifyWebSocket
 
 
 class DeveloperServices:
@@ -170,13 +170,16 @@ class DeveloperServices:
             )
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="auto_payment",
                 message="Payment successful",
                 data={
                     "transaction_id": transaction_id,
                     "amount": float(amount),
                     "status": TransactionStatus.SUCCESS.value
-                }
+                },
+                next_step={}
             )
 
         except HTTPException:
@@ -242,13 +245,16 @@ class DeveloperServices:
             if existing:
                 message = "Developer already approved" if existing.status else "Developer request pending"
                 return GlobalResponse(
+                    status_code=status.HTTP_200_OK,
                     success=True,
+                    action="existing_developer",
                     message=message,
                     data={
                         "api_key": existing.api_key,
                         "secret_key": existing.secret_key,
                         "status": existing.status
-                    }
+                    },
+                    next_step={}
                 )
 
             api_key = "DEVAPI" + Generators.generate_id()
@@ -265,13 +271,16 @@ class DeveloperServices:
             self.db.refresh(dev)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="request_developer",
                 message="Developer request submitted",
                 data={
                     "api_key": dev.api_key,
                     "secret_key": dev.secret_key,
                     "status": dev.status
-                }
+                },
+                next_step={}
             )
 
         except HTTPException:
@@ -307,7 +316,9 @@ class DeveloperServices:
             self.db.refresh(dev)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="cancel_developer",
                 message="Developer request cancelled",
                 data={
                     "api_key": dev.api_key,

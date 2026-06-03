@@ -461,7 +461,7 @@
 
         setLoading(true);
         try {
-            const response = await fetch(`${window.location.origin}/auth/register`, {
+            const response = await fetch(`${window.location.origin}/auth/signup`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -484,13 +484,10 @@
 
             const message = result?.message || "Registration successful.";
 
-            const otpResponse = await sendOTP({
-                method: "email",
-                delever_to: email
-            });
-            const otpToken = otpResponse?.data?.otp_token;
-            if (!otpToken) {
-                throw new Error("Registration completed, but OTP token was not returned.");
+            const emailVerificationToken = result?.data?.email_verification_token;
+            const userId = result?.data?.user_id;
+            if (!emailVerificationToken || !userId) {
+                throw new Error("Registration completed, but verification data was not returned.");
             }
 
             setSuccess("Registration complete. OTP sent to your email.");
@@ -502,9 +499,11 @@
             }
 
             const params = new URLSearchParams({
+                mode: "new_user_email",
+                user_id: userId,
                 method: "email",
                 delever_to: email,
-                otp_token: otpToken
+                email_verification_token: emailVerificationToken
             });
             setTimeout(() => {
                 window.location.href = `/verification?${params.toString()}`;

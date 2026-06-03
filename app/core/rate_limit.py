@@ -39,15 +39,15 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _raise_rate_limit_error(retry_after: int) -> None:
+def _raise_rate_limit_error(retry_after: int, detail: str = "Too many requests. Please try again later.") -> None:
     raise HTTPException(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail="Too many login attempts. Please try again later.",
+        detail=detail,
         headers={"Retry-After": str(max(retry_after, 1))},
     )
 
 
-def check_rate_limit(request: Request, key_prefix: str, limit: int, window_seconds: int) -> None:
+def check_rate_limit(request: Request, key_prefix: str, limit: int, window_seconds: int, detail: str = "Too many requests. Please try again later.") -> None:
     key = f"rate_limit:{key_prefix}:{_client_ip(request)}"
     redis_client = _get_redis_client()
 
@@ -59,7 +59,7 @@ def check_rate_limit(request: Request, key_prefix: str, limit: int, window_secon
 
             if current_count > limit:
                 retry_after = redis_client.ttl(key)
-                _raise_rate_limit_error(retry_after)
+                _raise_rate_limit_error(retry_after, detail=detail)
             return
         except RedisError:
             pass
@@ -72,7 +72,7 @@ def check_rate_limit(request: Request, key_prefix: str, limit: int, window_secon
 
     if len(hits) >= limit:
         retry_after = int(window_seconds - (now - hits[0]))
-        _raise_rate_limit_error(retry_after)
+        _raise_rate_limit_error(retry_after, detail=detail)
 
     hits.append(now)
 
@@ -83,4 +83,23 @@ def signin_rate_limit(request: Request) -> None:
         key_prefix="signin",
         limit=30,
         window_seconds=60 * 60,
+        detail="Too many login attempts. Please try again later.",
+    )
+
+def signup_rate_limit(request: Request) -> None:
+    check_rate_limit(
+        request=request,
+        key_prefix="signup",
+        limit=10,
+        window_seconds=60 * 60,
+        detail="Too many signup attempts. Please try again later.",
+    )
+
+def settings_rate_limit(request: Request) -> None:
+    check_rate_limit(
+        request=request,
+        key_prefix="settings_update",
+        limit=10,
+        window_seconds=60 * 60,
+        detail="Too many settings updates. Please try again later.",
     )

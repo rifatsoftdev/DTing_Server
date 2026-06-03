@@ -89,3 +89,10 @@ class UserTable(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+    # Activities relationship for one-to-many mapping between user and activity logs
+    activities = relationship(
+        "UserActivityTable",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )

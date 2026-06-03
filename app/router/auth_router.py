@@ -4,14 +4,14 @@ from fastapi.requests import Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.rate_limit import signin_rate_limit
+from app.core.rate_limit import signin_rate_limit, signup_rate_limit
 
 from app.schema import (
     GlobalResponse, FCMTokenRequest, ForgetPasswordRequest, GoogleLoginRequest,
     LoginRequest, RegisterRequest, OTPRequest, VerifyOTPRequest, LogoutAllRequest,
     ChangePasswordRequest, CancelDeleteAccountRequest, LinkGoogleAccountRequest,
-    DeleteAccountRequest, ResetPasswordRequest, LogoutRequest, TOTPSetupRequest,
-    AccessTokenRequest, EmailVerificationRequest
+    SetUsernameRequest, DeleteAccountRequest, ResetPasswordRequest, LogoutRequest,
+    TOTPSetupRequest, AccessTokenRequest, EmailVerificationRequest
 )
 from app.schema.auth_schemas import NewUserEmailVerificationRequest
 from services import (
@@ -32,12 +32,14 @@ auth_router = APIRouter()
 # ==============================================================================
 
 @auth_router.post("/signup", response_model=GlobalResponse)
+@auth_router.post("/register", response_model=GlobalResponse)
 async def signup(
     payload: RegisterRequest,
     request: Request,
     background_tasks: BackgroundTasks,
     authorization: str = Header(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(signup_rate_limit),
 ):
     registrationService = RegistrationService(
         db=db,
@@ -278,6 +280,25 @@ async def access_token(
 
 
 # ==============================================================================
+
+
+@auth_router.post("/set-username", response_model=GlobalResponse)
+async def set_username(
+    payload: SetUsernameRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    accountServices = AccountServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return accountServices.set_username(payload=payload)
+
 
 @auth_router.post("/reset-password")
 def reset_password(

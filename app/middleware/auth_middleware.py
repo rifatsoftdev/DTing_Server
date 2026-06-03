@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.database import SessionLocal
+from app.constants import AnsiColor
 from app.schema import GlobalResponse
 from services.auth.user_verification import UserVerificationService
 
@@ -28,13 +29,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         authorization = request.headers.get("authorization")
         if not authorization:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Missing Authorization header")
             return self._unauthorized("Missing Authorization header")
 
         if not authorization.startswith("Bearer "):
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Invalid token format")
             return self._unauthorized("Invalid token format")
 
         access_token = authorization.split(" ", 1)[1].strip()
         if not access_token:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Invalid Token")
             return self._unauthorized("Invalid Token")
 
         db = SessionLocal()
@@ -66,7 +70,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         status_code: int = status.HTTP_401_UNAUTHORIZED
     ) -> JSONResponse:
         response = GlobalResponse(
+            status_code=status_code,
             success=False,
+            action="unauthorized",
             message=message,
             data={}
         )

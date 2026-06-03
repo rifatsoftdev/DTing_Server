@@ -74,11 +74,14 @@ class OfferServices:
             self.db.refresh(offer)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="create_offer",
                 message="Offer added successfully",
                 data={
                     "offer": self._offer_to_dict(offer)
-                }
+                },
+                next_step={}
             )
 
         except HTTPException:
@@ -112,11 +115,14 @@ class OfferServices:
             self.db.refresh(offer)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="update_offer",
                 message="Offer updated successfully",
                 data={
                     "offer": self._offer_to_dict(offer)
-                }
+                },
+                next_step={}
             )
 
         except HTTPException:
@@ -137,7 +143,9 @@ class OfferServices:
             self.db.commit()
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="delete_offer",
                 message="Offer deleted successfully",
                 data={}
             )
@@ -160,7 +168,9 @@ class OfferServices:
             )
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="get_offer",
                 message="Offer fetched successfully",
                 data={
                     "offer": self._offer_to_dict(offer)
@@ -187,11 +197,14 @@ class OfferServices:
             )
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="get_offer_admin",
                 message="Offer fetched successfully",
                 data={
                     "offer": self._offer_to_dict(offer)
-                }
+                },
+                next_step={}
             )
 
         except HTTPException:
@@ -210,11 +223,14 @@ class OfferServices:
             ).order_by(OfferTable.created_at.desc()).all()
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="list_offers",
                 message="Offers fetched successfully",
                 data={
                     "offers": [self._offer_to_dict(offer) for offer in offers]
-                }
+                },
+                next_step={}
             )
 
         except HTTPException:

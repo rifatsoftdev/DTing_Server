@@ -3,7 +3,12 @@ from app.schema.auth_schemas import (
     GoogleLoginRequest,  LogoutAllRequest, DeleteAccountRequest,
     LogoutRequest, ForgetPasswordRequest, ResetPasswordRequest,
     CancelDeleteAccountRequest, ChangePasswordRequest, LinkGoogleAccountRequest,
-    FCMTokenRequest, NewUserEmailVerificationRequest
+    SetUsernameRequest, FCMTokenRequest, NewUserEmailVerificationRequest
+)
+from app.schema.service_schemas import (
+    ServiceAddRequest,
+    ServiceUpdateRequest,
+    ServiceDeleteRequest,
 )
 from app.schema.country_schema import CountryOut, NewCountryRequest, DisableCountryRequest
 from app.schema.dev_schema import PaymentRequest

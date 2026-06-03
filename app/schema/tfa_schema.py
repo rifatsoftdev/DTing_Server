@@ -55,14 +55,14 @@ class EmailTFADisableRequest(BaseModel):
 
 
 class SMSTFASetupRequest(BaseModel):
-    passuser_id: str
+    user_id: str
     access_token: str
     device_id: str
     device_uuid: str
 
 
 class SMSTFAConfirmRequest(BaseModel):
-    passuser_id: str
+    user_id: str
     access_token: str
     device_id: str
     device_uuid: str

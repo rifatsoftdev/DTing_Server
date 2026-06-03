@@ -1,12 +1,13 @@
 from datetime import date
 import traceback
 
-from fastapi import BackgroundTasks, Request, HTTPException, UploadFile, File
+from fastapi import BackgroundTasks, Request, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.constants import AnsiColor, String, ENV
-from app.model import UserTable, SessionTable, SettingsTable
+from app.model import UserTable, SessionTable, SettingsTable, UserActivityTable
 from app.schema import GlobalResponse
+from app.enums import UserActivityType
 
 
 
@@ -42,7 +43,9 @@ class ProfileServices():
                 raise HTTPException(status_code=401, detail=String.USER_NOT_LOGIN)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="get_profile",
                 message="Profile fetched successfully",
                 data={
                     "profile": {
@@ -186,15 +189,47 @@ class ProfileServices():
                     "Use one file key: avatar/photo/file"
                 )
 
+            # Prepare activity details
+            activity_details = {}
+            if full_name is not None:
+                activity_details["full_name_changed"] = True
+            if gender is not None:
+                activity_details["gender_changed"] = True
+            if date_of_birth is not None:
+                activity_details["date_of_birth_changed"] = True
+            if upload_file is not None:
+                activity_details["profile_picture_changed"] = True
+
+            # Log activity if any changes were made
+            if activity_details:
+                ip_address = self.__request.client.host if self.__request else None
+                user_agent = self.__request.headers.get("user-agent") if self.__request else None
+                
+                activity = UserActivityTable(
+                    user_id=user.user_id,
+                    activity_type=UserActivityType.PROFILE_UPDATE,
+                    detail={
+                        "action": "profile_updated",
+                        "changes": activity_details,
+                        "timestamp": str(date.today())
+                    },
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+                db.add(activity)
+
             db.commit()
             db.refresh(user)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="update_profile",
                 message="Profile updated successfully",
                 data={
                     "profile_picture": user.profile_image_url
-                }
+                },
+                next_step={}
             )
         
         except HTTPException:

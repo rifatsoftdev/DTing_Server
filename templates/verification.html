@@ -140,9 +140,12 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode") || "";
+    const userId = params.get("user_id") || "";
     const method = params.get("method") || "email";
     const deleverTo = params.get("delever_to") || "";
     let otpToken = params.get("otp_token") || "";
+    let emailVerificationToken = params.get("email_verification_token") || "";
 
     const otpForm = document.getElementById("otp-form");
     const otpInput = document.getElementById("otpInput");
@@ -171,7 +174,7 @@
         verifyBtn.textContent = isLoading ? "Verifying..." : "Verify OTP";
     }
 
-    if (!deleverTo || !otpToken) {
+    if (!deleverTo || (!otpToken && !emailVerificationToken)) {
         showError("Verification data missing. Please register again.");
     } else {
         deliverToText.textContent = `OTP sent to: ${deleverTo}`;
@@ -187,19 +190,25 @@
             return;
         }
 
-        if (!deleverTo || !otpToken) {
+        if (!deleverTo || (!otpToken && !emailVerificationToken)) {
             showError("Verification data missing. Please register again.");
             return;
         }
 
         setVerifyLoading(true);
         try {
-            const result = await verifyOTP({
-                method,
-                delever_to: deleverTo,
-                otp: otpInput.value.trim(),
-                otp_token: otpToken
-            });
+            const result = mode === "new_user_email"
+                ? await verifyNewUserEmail({
+                    user_id: userId,
+                    otp: otpInput.value.trim(),
+                    email_verification_token: emailVerificationToken
+                })
+                : await verifyOTP({
+                    method,
+                    delever_to: deleverTo,
+                    otp: otpInput.value.trim(),
+                    otp_token: otpToken
+                });
 
             const data = result?.data || {};
             persistAuthSession({
@@ -241,11 +250,16 @@
         resendOtpLink.style.pointerEvents = "none";
         resendOtpLink.textContent = "Sending...";
         try {
-            const result = await sendOTP({
-                method,
-                delever_to: deleverTo
-            });
+            const result = mode === "new_user_email"
+                ? await resendNewUserEmailVerification({
+                    email_verification_token: emailVerificationToken
+                })
+                : await sendOTP({
+                    method,
+                    delever_to: deleverTo
+                });
             otpToken = result?.data?.otp_token || otpToken;
+            emailVerificationToken = result?.data?.email_verification_token || emailVerificationToken;
             showSuccess("A new OTP has been sent.");
         } catch (error) {
             showError(error?.message || "Failed to resend OTP.");

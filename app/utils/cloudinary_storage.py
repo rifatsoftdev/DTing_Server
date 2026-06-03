@@ -67,6 +67,9 @@ class CloudinaryStorage:
                 public_id=public_id,
                 overwrite=True
             )
+            if result is None:
+                raise ValueError("Cloudinary upload returned no result")
+
             self.__save(public_id=result["public_id"], secure_url=result["secure_url"], file_type=file_type)
 
             return {
@@ -76,7 +79,7 @@ class CloudinaryStorage:
             }
         except Exception as e:
             print(f"Cloudinary upload error: {e}")
-            return None
+            raise
     
     def delete_file(self, public_id, file_type="image") -> dict | None:
         """

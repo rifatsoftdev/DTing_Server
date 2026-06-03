@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, Header
-from fastapi.responses import HTMLResponse
 from fastapi.requests import Request
 from sqlalchemy.orm import Session
 
@@ -10,8 +9,9 @@ from app.schema import (
     EmailTFASetupRequest, EmailTFAConfirmRequest, EmailTFADisableRequest,
     SMSTFASetupRequest, SMSTFAConfirmRequest, SMSTFADisableRequest,
 )
+from app.utils.helpers import Helpers
 from services import (
-    GoogleOauth, TFAServices,
+    TFAServices,
     RegistrationService,
     PasswordService, AccountServices
 )
@@ -99,6 +99,7 @@ async def email_tfa_confirm(
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
+    # Helpers.print_payload(payload)
     tfaService = TFAServices(
         db=db,
         background_tasks=background_tasks,
@@ -112,6 +113,26 @@ async def email_tfa_confirm(
 
 
 # ==============================================================================
+
+@tfa_router.post("/email-tfa-setup")
+async def email_tfa_setup(
+    payload: EmailTFASetupRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    tfaService = TFAServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return tfaService.email_setup(payload=payload)
+
+
+# ============================================================================== 
 
 @tfa_router.post("/email-tfa-disable")
 async def email_tfa_disable(

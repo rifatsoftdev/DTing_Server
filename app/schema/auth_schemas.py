@@ -144,7 +144,7 @@ class CancelDeleteAccountRequest(BaseModel):
 # Change Password
 class ChangePasswordRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     user_password: str
@@ -166,3 +166,18 @@ class LinkGoogleAccountRequest(BaseModel):
     device_id: str
     device_uuid: str
     token_id: str
+
+
+class SetUsernameRequest(BaseModel):
+    user_id: str
+    access_token: str
+    device_id: str
+    device_uuid: str
+    username: str = Field(..., min_length=3, max_length=30)
+
+    @field_validator("user_id", "access_token", "device_id", "device_uuid", "username")
+    @classmethod
+    def required_string_must_not_be_blank(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Field must not be blank")
+        return value.strip()

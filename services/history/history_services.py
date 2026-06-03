@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import HTTPException, Request, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from decimal import Decimal
@@ -10,7 +10,7 @@ from app.model import DevTable, UserTable
 from app.utils import Generators, Helpers
 
 from services.auth.user_verification import UserVerificationService
-from services.notification.noticication_services import NotificationServices, NotificationData
+from services.notification.notification_services import NotificationServices
 
 
 class HistoryServices:
@@ -46,11 +46,14 @@ class HistoryServices:
                 })
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="fetch_notifications",
                 message="All transactions fetched successfully",
                 data={
                     "notifications": notifications_list[::-1]
-                }
+                },
+                next_step={}
             )
         
         except HTTPException:

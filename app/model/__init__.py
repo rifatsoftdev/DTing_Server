@@ -15,5 +15,6 @@ from app.model.two_factor_table import TwoFactorTable
 from app.model.user_kyc_table import KYCTable
 from app.model.user_services_table import UserServicesTable
 from app.model.user_table import UserTable
+from app.model.user_activity_table import UserActivityTable
 
 

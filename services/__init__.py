@@ -10,6 +10,6 @@ from services.auth.account_service import AccountServices
 
 from services.oauth.google_oauth import GoogleOauth
 
-from services.notification.noticication_services import NotificationServices, NotificationData
+from services.notification.notification_services import NotificationServices
 
 from services.user.user_services import UserServices

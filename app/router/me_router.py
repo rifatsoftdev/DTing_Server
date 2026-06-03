@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 from datetime import date
 
 from app.core.database import get_db
+from app.core.rate_limit import settings_rate_limit
 
 from app.schema import GlobalResponse
 from services import UserServices
@@ -81,12 +82,14 @@ async def settings(
 # ==============================================================================
 
 @me_router.patch("/settings", response_model=GlobalResponse)
+@me_router.put("/settings", response_model=GlobalResponse)
 async def update_settings(
     request: Request,
     background_tasks: BackgroundTasks,
     payload: Dict[str, Any] = Body(...),
     authorization: str = Header(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: None = Depends(settings_rate_limit),
 ):
     userServices = UserServices(
         db=db,
@@ -125,15 +128,13 @@ async def sessions(
 
 
 
-
-# ==============================================================================
-
-@me_router.get("/profile/edit-info", response_model=GlobalResponse)
-@me_router.get("/edit-info", response_model=GlobalResponse)
-async def edit_info(
+@me_router.get("/activities", response_model=GlobalResponse)
+async def activities(
     request: Request,
     background_tasks: BackgroundTasks,
     authorization: str = Header(None),
+    start: int = 0,
+    end: int = 5,
     db: Session = Depends(get_db)
 ):
     userServices = UserServices(
@@ -143,7 +144,12 @@ async def edit_info(
         authorization=authorization
     )
 
-    return userServices.edit_info()
+    return userServices.get_activities(
+        start=start,
+        end=end
+    )
+
+
 
 
 
@@ -251,6 +257,28 @@ async def kyc_submit(
     )
 
 
+
+
+# ==============================================================================
+
+@me_router.get("/security-center", response_model=GlobalResponse)
+async def security_center(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user security center information.
+    """
+    userServices = UserServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return userServices.get_security_center()
 
 
 # ==============================================================================

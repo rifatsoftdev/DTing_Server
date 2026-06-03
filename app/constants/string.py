@@ -47,9 +47,9 @@ class String:
     ACCESS_TOKEN = "access"
     REFRESH_TOKEN = "refresh"
     
-    COMPANY_LOGO = "https://res.cloudinary.com/dgh76k5vn/image/upload/v1769602666/app_logo_ibnykm.png"
-    COMPANY_NAME = "PocketPay"
+    COMPANY_LOGO = "https://res.cloudinary.com/dgh76k5vn/image/upload/v1780333288/logo_fi8rjp.png"
+    COMPANY_NAME = "DTing"
     COMPANY_ADDRESS = "Bogura, Bangladesh"
-    COMPANY_CONTACT  = "poketpay@gmail.com"
+    COMPANY_CONTACT  = "dting.official@gmail.com"
     
     

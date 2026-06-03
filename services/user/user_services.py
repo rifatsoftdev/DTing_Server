@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 
 from app.constants import AnsiColor, String, ENV
-from app.enums import KYCStatus
+from app.enums import KYCStatus, UserActivityType
 from app.schema import GlobalResponse
-from app.model import SessionTable, UserTable, SettingsTable, KYCTable
+from app.model import SessionTable, UserTable, SettingsTable, KYCTable, UserActivityTable, UserServicesTable, TwoFactorTable
 from app.utils import Helpers
 
 from services.auth.user_verification import UserVerificationService
@@ -83,6 +83,149 @@ class UserServices:
             "login_at": session.login_at.isoformat() if session.login_at else None,
             "logout_at": session.logout_at.isoformat() if session.logout_at else None
         }
+
+    @classmethod
+    def get_user_services(cls, db: Session, user_id: str) -> list[dict]:
+        services = db.query(UserServicesTable).filter(
+            UserServicesTable.user_id == user_id
+        ).all()
+        result = []
+        for service in services:
+            result.append({
+                "id": service.id,
+                "user_id": service.user_id,
+                "service_name": service.service_name,
+                "service_slug": service.service_slug,
+                "service_details": service.service_details,
+                "status": service.status.value if service.status else None,
+                "enabled": True,
+                "created_at": service.created_at.isoformat() if service.created_at else None,
+                "updated_at": service.updated_at.isoformat() if service.updated_at else None,
+            })
+        return result
+
+    @classmethod
+    def add_user_service(
+        cls,
+        db: Session,
+        user_id: str,
+        service_slug: str,
+        service_name: str | None = None,
+        service_details: dict | None = None,
+        service_status: str | None = None,
+    ) -> dict:
+        existing = db.query(UserServicesTable).filter(
+            UserServicesTable.user_id == user_id,
+            UserServicesTable.service_slug == service_slug
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Service already enabled for this user"
+            )
+
+        from app.enums import ActivityStatus
+
+        if service_status:
+            try:
+                status_value = ActivityStatus(service_status.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid service status"
+                )
+        else:
+            status_value = ActivityStatus.ACTIVE
+
+        if not service_name:
+            service_name = " ".join(part.capitalize() for part in service_slug.split("-"))
+
+        service = UserServicesTable(
+            user_id=user_id,
+            service_slug=service_slug,
+            service_name=service_name,
+            service_details=service_details,
+            status=status_value,
+        )
+        db.add(service)
+        db.commit()
+        db.refresh(service)
+
+        return {
+            "id": service.id,
+            "user_id": service.user_id,
+            "service_name": service.service_name,
+            "service_slug": service.service_slug,
+            "service_details": service.service_details,
+            "status": service.status.value if service.status else None,
+            "enabled": True,
+            "created_at": service.created_at.isoformat() if service.created_at else None,
+            "updated_at": service.updated_at.isoformat() if service.updated_at else None,
+        }
+
+    @classmethod
+    def update_user_service(
+        cls,
+        db: Session,
+        user_id: str,
+        service_slug: str,
+        service_name: str | None = None,
+        service_details: dict | None = None,
+        service_status: str | None = None,
+    ) -> dict:
+        service = db.query(UserServicesTable).filter(
+            UserServicesTable.user_id == user_id,
+            UserServicesTable.service_slug == service_slug
+        ).first()
+        if not service:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Service not found for this user"
+            )
+
+        if service_name is not None:
+            service.service_name = service_name
+        if service_details is not None:
+            service.service_details = service_details
+        if service_status is not None:
+            from app.enums import ActivityStatus
+            try:
+                service.status = ActivityStatus(service_status.lower())
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid service status"
+                )
+
+        db.commit()
+        db.refresh(service)
+
+        return {
+            "id": service.id,
+            "user_id": service.user_id,
+            "service_name": service.service_name,
+            "service_slug": service.service_slug,
+            "service_details": service.service_details,
+            "status": service.status.value if service.status else None,
+            "enabled": True,
+            "created_at": service.created_at.isoformat() if service.created_at else None,
+            "updated_at": service.updated_at.isoformat() if service.updated_at else None,
+        }
+
+    @classmethod
+    def delete_user_service(cls, db: Session, user_id: str, service_slug: str) -> None:
+        service = db.query(UserServicesTable).filter(
+            UserServicesTable.user_id == user_id,
+            UserServicesTable.service_slug == service_slug
+        ).first()
+        if not service:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Service not found for this user"
+            )
+
+        db.delete(service)
+        db.commit()
 
 
     # a function of get user profile information
@@ -252,7 +395,6 @@ class UserServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-
     def update_settings(self, payload: Dict[str, Any]) -> GlobalResponse:
         try:
             userVerificationService = UserVerificationService(
@@ -311,6 +453,23 @@ class UserServices:
             for field, value in update_data.items():
                 setattr(settings, field, value)
 
+            # Log activity
+            ip_address = self.request.client.host if self.request else None
+            user_agent = self.request.headers.get("user-agent") if self.request else None
+            
+            activity = UserActivityTable(
+                user_id=user_id,
+                activity_type=UserActivityType.SETTINGS_CHANGE,
+                detail={
+                    "action": "settings_updated",
+                    "changed_fields": list(update_data.keys()),
+                    "timestamp": str(datetime.now())
+                },
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            self.db.add(activity)
+
             self.db.commit()
             self.db.refresh(settings)
 
@@ -331,7 +490,6 @@ class UserServices:
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
 
     # a function to get user session information
     def get_sessions(
@@ -399,12 +557,37 @@ class UserServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+    def _serialize_activity(self, activity: UserActivityTable | None) -> dict:
+        if not activity:
+            return None
 
-    # a function to get user edit information
-    def edit_info(self):
+        return {
+            "id": activity.id,
+            "activity_type": self._enum_value(activity.activity_type),
+            "detail": activity.detail,
+            "ip_address": activity.ip_address,
+            "user_agent": activity.user_agent,
+            "created_at": activity.created_at.isoformat() if activity.created_at else None
+        }
+
+    def get_activities(
+        self,
+        start: int = 0,
+        end: int = 5
+    ) -> GlobalResponse:
         try:
-            # print(f"Profile attempt: {request}")
-            
+            if start < 0 or end < 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="start and end must be greater than or equal to 0"
+                )
+
+            if end <= start:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="end must be greater than start"
+                )
+
             access_token = Helpers.authorization(self.authorization)
 
             # verify user
@@ -418,31 +601,39 @@ class UserServices:
                 access_token=access_token
             )
 
-            user = self.db.query(UserTable).filter(
-                UserTable.user_id == user_id
-            ).first()
+            query = self.db.query(UserActivityTable).filter(
+                UserActivityTable.user_id == user_id
+            ).order_by(UserActivityTable.id.desc())
+
+            total = query.count()
+            activities = query.offset(start).limit(end - start).all()
+            data = {
+                "start": start,
+                "end": end,
+                "count": len(activities),
+                "total": total,
+                "activities": [
+                    self._serialize_activity(a)
+                    for a in activities
+                ]
+            }
 
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
-                action="profile_edit_info_fetched",
-                message="Profile Edit Info",
-                data={
-                    "full_name": user.full_name,
-                    "gender": self._enum_value(user.user_gender),
-                    "date_of_birth": self._format_date_of_birth(user.date_of_birth),
-                    "profile_picture": user.profile_image_url
-                },
+                action="activities_fetched",
+                message="Activities fetched successfully",
+                data=data,
                 next_step={}
             )
-        
+
         except HTTPException:
             raise
 
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-    
+
     def update_profile(
         self,
         user_id: str,
@@ -476,6 +667,14 @@ class UserServices:
                 password=None,
                 advance_check=False
             )
+
+            # capture old values for activity logging
+            old_values = {
+                "full_name": user.full_name if user else None,
+                "gender": user.user_gender if user else None,
+                "date_of_birth": user.date_of_birth if user else None,
+                "profile_image_url": user.profile_image_url if user else None
+            }
 
             if full_name is not None:
                 user.full_name = full_name
@@ -519,11 +718,25 @@ class UserServices:
                         public_id=f"{user.user_id}/profile_photo",
                         file_type="image"
                     )
+                    if not upload_result:
+                        raise HTTPException(
+                            status_code=502,
+                            detail="Cloudinary upload failed: no upload response received"
+                        )
+
                     uploaded_url = upload_result.get("secure_url") or upload_result.get("url")
+                    if not uploaded_url:
+                        raise HTTPException(
+                            status_code=502,
+                            detail="Cloudinary upload failed: image URL missing"
+                        )
+
                     print(
                         f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}: cloudinary upload success "
                         f"secure_url={uploaded_url}"
                     )
+                except HTTPException:
+                    raise
                 except Exception as upload_error:
                     print(f"{AnsiColor.RED}ERROR{AnsiColor.RESET}: Cloudinary upload failed -> {upload_error}")
                     traceback.print_exc()
@@ -532,10 +745,7 @@ class UserServices:
                         detail=f"Cloudinary upload failed: {str(upload_error)}"
                     )
 
-                user.profile_image_url = upload_result.get("secure_url") or upload_result.get("url")
-
-                if not user.profile_image_url:
-                    raise HTTPException(status_code=502, detail="Cloudinary upload failed: image URL missing")
+                user.profile_image_url = uploaded_url
             else:
                 print(
                     f"{AnsiColor.YELLOW}INFO{AnsiColor.RESET}: no profile photo received. "
@@ -544,6 +754,58 @@ class UserServices:
 
             self.db.commit()
             self.db.refresh(user)
+
+            # prepare activity details
+            try:
+                changes = {}
+                if old_values.get("full_name") != user.full_name:
+                    changes["full_name"] = {"old": old_values.get("full_name"), "new": user.full_name}
+
+                if str(old_values.get("gender")) != str(user.user_gender):
+                    changes["gender"] = {"old": self._enum_value(old_values.get("gender")), "new": self._enum_value(user.user_gender)}
+
+                if (old_values.get("date_of_birth") and user.date_of_birth and
+                        old_values.get("date_of_birth") != user.date_of_birth):
+                    changes["date_of_birth"] = {"old": str(old_values.get("date_of_birth")), "new": str(user.date_of_birth)}
+
+                if old_values.get("profile_image_url") != user.profile_image_url:
+                    changes["profile_image_url"] = {"old": old_values.get("profile_image_url"), "new": user.profile_image_url}
+
+                # insert NAME_CHANGE activity if name changed
+                if "full_name" in changes:
+                    try:
+                        name_activity = UserActivityTable(
+                            user_id=user.user_id,
+                            activity_type=UserActivityType.NAME_CHANGE,
+                            detail={"old": changes["full_name"]["old"], "new": changes["full_name"]["new"]},
+                            ip_address=(self.request.client.host if getattr(self.request, 'client', None) else None),
+                            user_agent=self.request.headers.get("user-agent")
+                        )
+                        self.db.add(name_activity)
+                        self.db.commit()
+                    except Exception:
+                        self.db.rollback()
+
+                # insert PROFILE_UPDATE activity if any profile fields changed
+                if changes:
+                    try:
+                        profile_activity = UserActivityTable(
+                            user_id=user.user_id,
+                            activity_type=UserActivityType.PROFILE_UPDATE,
+                            detail=changes,
+                            ip_address=(self.request.client.host if getattr(self.request, 'client', None) else None),
+                            user_agent=self.request.headers.get("user-agent")
+                        )
+                        self.db.add(profile_activity)
+                        self.db.commit()
+                    except Exception:
+                        self.db.rollback()
+            except Exception:
+                # ensure activity logging failure does not break profile update
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
 
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
@@ -690,8 +952,20 @@ class UserServices:
                     public_id=f"{user.user_id}/kyc/{file.filename}",
                     file_type="image"
                 )
+                if not image_url:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Cloudinary upload failed: no upload response received"
+                    )
 
-                url_results.append(image_url.get("secure_url") or image_url.get("url"))
+                image_url_value = image_url.get("secure_url") or image_url.get("url")
+                if not image_url_value:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Cloudinary upload failed: image URL missing"
+                    )
+
+                url_results.append(image_url_value)
             
             if old_status == KYCStatus.REJECTED.value:
                 # update kyc info
@@ -743,8 +1017,105 @@ class UserServices:
         except Exception as e:
             print(f"{AnsiColor.RED}ERROR{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-            
 
+    def get_security_center(self) -> GlobalResponse:
+        try:
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
+
+            user = self.db.query(UserTable).filter(
+                UserTable.user_id == user_id
+            ).first()
+
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.USER_NOT_FOUND
+                )
+
+            settings: SettingsTable = user.settings
+
+            if not settings:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.SETTINGS_NOT_FOUND
+                )
+
+            enabled_tfa = self.db.query(TwoFactorTable).filter(
+                TwoFactorTable.user_id == user_id,
+                TwoFactorTable.is_enabled == True
+            ).all()
+            enabled_tfa_methods = [
+                {
+                    "method": method.method_type.value,
+                    "delivery_address": method.delivery_address,
+                    "is_primary": method.is_primary,
+                    "enabled_at": method.created_at.isoformat() if method.created_at else None
+                }
+                for method in enabled_tfa
+            ]
+
+            # determine available TFA methods and totals
+            from app.enums import TwoFactorType
+            all_methods = [TwoFactorType.TOTP, TwoFactorType.EMAIL, TwoFactorType.SMS]
+            enabled_method_types = {method.method_type for method in enabled_tfa}
+            available_methods = [m.value for m in all_methods if m not in enabled_method_types]
+            total_enabled = len(enabled_tfa_methods)
+
+            last_login_session = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user_id,
+                SessionTable.is_login == True
+            ).order_by(SessionTable.login_at.desc()).first()
+
+            active_sessions = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user_id,
+                SessionTable.is_login == True
+            ).count()
+
+            return GlobalResponse(
+                status_code=status.HTTP_200_OK,
+                success=True,
+                action="security_center_fetched",
+                message="Security center data fetched successfully",
+                data={
+                    "security": {
+                        "last_password_changed_at": settings.last_password_changed_at.isoformat() if settings.last_password_changed_at else None,
+                        "password_change_alerts": settings.password_change_alerts,
+                        "login_alerts": settings.login_alerts,
+                        "new_device_alerts": settings.new_device_alerts,
+                        "biometric_enabled": settings.biometric_enabled,
+                        "biometric_enabled_at": settings.biometric_enabled_at.isoformat() if settings.biometric_enabled_at else None,
+                        "account_deactivated": settings.account_deactivated,
+                        "deactivated_at": settings.deactivated_at.isoformat() if settings.deactivated_at else None,
+                        "email_verified": user.email_verified,
+                        "phone_verified": user.phone_verified,
+                        "google_linked": bool(user.link_google),
+                        "enabled_tfa_methods": enabled_tfa_methods,
+                        "enabled_methods": enabled_tfa_methods,
+                        "available_methods": available_methods,
+                        "total_enabled": total_enabled,
+                        "active_sessions": active_sessions,
+                        "last_login_at": last_login_session.login_at.isoformat() if last_login_session else None
+                    }
+                },
+                next_step={}
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+    # get_tfa_methods_status removed — functionality exposed via get_security_center
+            
 
 
 

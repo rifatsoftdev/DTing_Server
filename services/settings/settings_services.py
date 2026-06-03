@@ -1,5 +1,5 @@
 from typing import Any, Dict
-
+from fastapi import BackgroundTasks, Request, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.model import AppConfigTable
@@ -31,7 +31,9 @@ class SettingsServices:
         settings = {config.key: config.value for config in configs}
 
         return GlobalResponse(
+            status_code=status.HTTP_200_OK,
             success=True,
+            action="get_settings",
             message="Settings fetched successfully",
             data={"settings": settings}
         )
@@ -41,7 +43,9 @@ class SettingsServices:
 
         if not config:
             return GlobalResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
                 success=False,
+                action="update_setting",
                 message="Settings key not found",
                 data={}
             )
@@ -57,7 +61,9 @@ class SettingsServices:
         self.db.refresh(config)
 
         return GlobalResponse(
+            status_code=status.HTTP_200_OK,
             success=True,
+            action="update_setting",
             message="Settings updated successfully",
             data={"key": config.key, "value": config.value}
         )

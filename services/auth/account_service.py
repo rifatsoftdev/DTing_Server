@@ -8,7 +8,7 @@ from app.enums import NotificationType
 from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable, TwoFactorTable, UserTable
 from app.schema import (
     GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest, LoginRequest,
-    LogoutRequest, LogoutAllRequest, FCMTokenRequest, AccessTokenRequest
+    FCMTokenRequest, AccessTokenRequest, SetUsernameRequest
 )
 from app.utils import Hashing, Helpers
 
@@ -19,11 +19,11 @@ from services.auth.user_repository import UserRepository
 from services.auth.token_service import TokenGenerators
 from services.auth.signup_service import RegistrationService
 
-from services.notification.noticication_services import NotificationServices, NotificationData
+from services.notification.notification_services import NotificationServices, NotificationData, NotificationEvent
+from services.auth.signin_service import SigninService
 
 
-
-class AccountServices(OTPService, UserRepository, TokenGenerators):
+class AccountServices(OTPService, SigninService):
     def __init__(
         self,
         db: Session,
@@ -39,11 +39,13 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             authorization=authorization
         )
         UserRepository.__init__(self, db)
-        TokenGenerators.__init__(self, db)
-
-    @staticmethod
-    def _normalize_tfa_method(method_type) -> str:
-        return method_type.value if hasattr(method_type, "value") else str(method_type).lower()
+        SigninService.__init__(
+            self,
+            db=db,
+            background_tasks=background_tasks,
+            request=request,
+            authorization=authorization
+        )
 
     @staticmethod
     def _mask_email(email_address: str | None) -> str | None:
@@ -68,318 +70,13 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
         visible_prefix = min(4, len(phone_number) - 2)
         return f"{phone_number[:visible_prefix]}{'*' * (len(phone_number) - visible_prefix - 2)}{phone_number[-2:]}"
 
-    def _masked_tfa_destination(self, method_type: str, method: TwoFactorTable, user: UserTable) -> str | None:
-        delivery_address = method.delivery_address
-
-        if method_type == "email":
-            return self._mask_email(delivery_address or user.email_address)
-
-        if method_type == "sms":
-            phone_number = delivery_address or f"{user.country_code or ''}{user.phone_number or ''}" or None
-            return self._mask_phone(phone_number)
-
-        return None
-
-
-    # This will log in the user and create a session. If 2FA is enabled, it will return a response indicating that 2FA verification is required. If 2FA is not enabled, it will return the access token and refresh token.
-    def signin(
-        self, 
-        payload: LoginRequest
-    ) -> GlobalResponse:
-        try:
-            # Step 0: Get data from request
-            email_address: str = payload.email_address
-            phone_number: str = payload.phone_number
-            country_code: str = payload.country_code
-            user_password: str = payload.user_password
-            device_id: str = payload.device_id
-            device_uuid: str = payload.device_uuid
-            
-            # Request info
-            ip: str = self.request.client.host if self.request and self.request.client else None
-            
-            # Step 1: Find user by email or phone
-            user: UserTable = self.check_user_already_exists(
-                email=email_address,
-                phone=phone_number,
-                country_code=country_code
-            )
-            
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.USER_NOT_FOUND
-                )
-
-            settings: SettingsTable = user.settings
-
-            if not settings:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.SETTINGS_NOT_FOUND
-                )
-
-            if settings.account_deactivated:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.ACCOUNT_LOCKED
-                )
-
-            # Step 2: Check if password is set
-            if not user.password_hash:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=String.PASSWORD_NOT_SET
-                )
-
-            # Step 3: Verify password
-            if (not Hashing.verify_password(user_password, user.password_hash)):
-                raise HTTPException(
-                    status_code=401,
-                    detail=String.INVALID_PASSWORD
-                )
-
-            # Step 4: Check email verification
-            if (not user.email_verified):
-                registration_service = RegistrationService(
-                    db=self.db,
-                    background_tasks=self.background_tasks,
-                    request=self.request,
-                    authorization=self.authorization
-                )
-                response: GlobalResponse = registration_service.email_verification_required_response(
-                    user=user,
-                    device_id=device_id,
-                    device_uuid=device_uuid
-                )
-                self.db.commit()
-
-                return response
-
-            # Step 5: Create tokens and session
-            access_token = None
-            refresh_token = None
-
-            enabled_tfa_methods = self.db.query(TwoFactorTable).filter(
-                TwoFactorTable.user_id == user.user_id,
-                TwoFactorTable.is_enabled == True
-            ).order_by(
-                TwoFactorTable.is_primary.desc(),
-                TwoFactorTable.created_at.asc()
-            ).all()
-
-            two_factor_method_names = [
-                self._normalize_tfa_method(method.method_type)
-                for method in enabled_tfa_methods
-            ]
-            two_factor_methods = [
-                {
-                    "method": method_type,
-                    "delivery_address": self._masked_tfa_destination(method_type, method, user),
-                    "is_primary": method.is_primary
-                }
-                for method, method_type in zip(enabled_tfa_methods, two_factor_method_names)
-            ]
-            is_2fa_required = bool(two_factor_method_names)
-
-            if not is_2fa_required:
-                token_data = {
-                    "user_id": user.user_id,
-                    "email_address": user.email_address,
-                    "device_id": device_id,
-                    "device_uuid": device_uuid
-                }
-
-                access_token = self._create_token(
-                    token_type=String.ACCESS_TOKEN,
-                    expire_min=ENV.ACCESS_EXPIRE,
-                    data=token_data
-                )
-
-                refresh_token = self._create_token(
-                    token_type=String.REFRESH_TOKEN,
-                    expire_day=ENV.REFRESH_EXPIRE,
-                    data=token_data
-                )
-            
-            session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user.user_id,
-                SessionTable.device_id == device_id,
-                SessionTable.device_uuid == device_uuid
-            ).first()
-
-            if session:
-                session.access_token_hash = Hashing.create_hash(access_token) if access_token else None
-                session.refresh_token_hash = Hashing.create_hash(refresh_token) if refresh_token else None
-                session.last_ip_address = ip
-                session.login_at = Helpers.utc6dhaka()
-                session.logout_at = None
-                session.is_login = not is_2fa_required
-                session.otp_verified = not is_2fa_required
-            else:
-                session = SessionTable(
-                    user_id=user.user_id,
-                    fcm_token=None,
-                    access_token_hash=Hashing.create_hash(access_token) if access_token else None,
-                    refresh_token_hash=Hashing.create_hash(refresh_token) if refresh_token else None,
-                    device_uuid=device_uuid,
-                    device_id=device_id,
-                    login_at=Helpers.utc6dhaka(),
-                    last_ip_address=ip,
-                    is_login=not is_2fa_required,
-                    otp_verified=not is_2fa_required
-                )
-                self.db.add(session)
-
-            # user Notification
-            new_notification = NotificationTable(
-                target_id=user.user_id,
-                type=NotificationType.ALERT,
-                title="New Login Detected",
-                body=f"Your account was logged in from IP {ip} on {Helpers.utc6dhaka()}. If this wasn’t you, change your password immediately."
-            )
-            self.db.add(new_notification)
-
-            # all commit and refresh
-            self.db.commit()
-            self.db.refresh(session)
-            self.db.refresh(new_notification)
-
-            if is_2fa_required:
-                request_token: str = self._create_token(
-                    token_type="otp_token",
-                    expire_min=5,
-                    data={
-                        "user_id": user.user_id,
-                        "device_id": device_id,
-                        "device_uuid": device_uuid,
-                        "type": "2fa_request"
-                    }
-                )
-                
-                return GlobalResponse(
-                    status_code=status.HTTP_200_OK,
-                    success=True,
-                    action="2fa_verification_required",
-                    message="Two-factor verification required",
-                    data={
-                        "requires_2fa": True,
-                        "request_token": request_token, 
-                        "otp_token": request_token,
-                        "two_factor_methods": two_factor_methods,
-                        "user_id": user.user_id,
-                        "device_id": device_id,
-                        "device_uuid": device_uuid
-                    },
-                    next_step={
-                        "endpoint": "/auth/verify-otp",
-                        "method": "POST",
-                        "payload": {
-                            "otp_token": "request_token",
-                            "otp": "otp",
-                            "method": "totp/sms/email",
-                            "purpose": "login",
-                            "device_id": "device_id",
-                            "device_uuid": "device_uuid"
-                        }
-                    }
-                )
-
-            return GlobalResponse(
-                status_code=status.HTTP_200_OK,
-                success=True,
-                action="login",
-                message="Login successful",
-                data={
-                    "requires_2fa": False,
-                    "user_id": user.user_id,
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "token_type": "bearer",
-                    "expires_in": ENV.ACCESS_EXPIRE,
-                    "email_address": user.email_address,
-                    "phone_number": f"{user.country_code or ''}{user.phone_number or ''}" or None
-                },
-                next_step={}
-            )
-        
-        except HTTPException:
-            raise
-        
-        except Exception as e:
-            self.db.rollback()
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
-
-    # This will log out the user from the current device only
-    def logout(
-        self, 
-        payload: LogoutRequest
-    ) -> GlobalResponse:
-        try:
-            # print(f"Logout attempt: {request}")
-            user_id: str = payload.user_id
-            access_token: str = payload.access_token
-            device_id: str = payload.device_id
-            device_uuid: str = payload.device_uuid
-
-            user_verification_service = UserVerificationService(self.db)
-
-            user: UserTable = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                device_id=device_id,
-                device_uuid=device_uuid
-            )
-
-            # Request info
-            # ip:str = request.client.host
-            # user_agent:str = request.headers.get("user-agent")
-            # auth:str = request.headers.get("authorization"),
-            # path:str = request.url.path,
-            # query:dict = dict(request.query_params),
-            # cookies:dict = request.cookies
-
-            session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id,
-                SessionTable.device_id == device_id,
-                SessionTable.device_uuid == device_uuid,
-                SessionTable.is_login == True
-            ).first()
-
-            if not session:
-                raise HTTPException(status_code=404, detail=String.SESSION_NOT_FOUND)
-            
-            session.is_login = False
-            session.fcm_token = None
-            session.logout_at = Helpers.utc6dhaka()
-            
-            self.db.commit()
-            self.db.refresh(session)
-
-            return GlobalResponse(
-                success=True,
-                message=String.LOGOUT_SUCCESSFUL,
-                data={}
-            )
-        
-        except HTTPException:
-            raise
-        
-        except Exception as e:
-            self.db.rollback()
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
-
-    # This will log out all sessions of the user across all devices
-    def logout_all(self, payload: LogoutAllRequest):
+    def set_username(self, payload: SetUsernameRequest) -> GlobalResponse:
         try:
             user_id: str = payload.user_id
             access_token: str = payload.access_token
             android_id: str = payload.device_id
             android_uuid: str = payload.device_uuid
+            username: str = payload.username.strip()
 
             user_verification_service = UserVerificationService(
                 db=self.db,
@@ -391,34 +88,40 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             user = user_verification_service.verify_user(
                 user_id=user_id,
                 access_token=access_token,
-                android_id=android_id,
-                android_uuid=android_uuid
+                device_id=android_id,
+                device_uuid=android_uuid
             )
 
-            sessions = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id,
-                SessionTable.is_login == True
-            ).all()
+            existing_username = self.db.query(UserTable).filter(
+                UserTable.username == username,
+                UserTable.user_id != user.user_id
+            ).first()
+            if existing_username:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Username already taken"
+                )
 
-            for session in sessions:
-                session.is_login = False
-                session.fcm_token = None
-                session.access_token_hash = None
-                session.refresh_token_hash = None
-                session.logout_at = Helpers.utc6dhaka()
-
+            user.username = username
             self.db.commit()
+            self.db.refresh(user)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
-                message="All sessions logged out successfully",
-                data={}
+                action="set_username",
+                message="Username set successfully",
+                data={
+                    "username": user.username
+                },
+                next_step={}
             )
 
         except HTTPException:
             raise
 
         except Exception as e:
+            self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
@@ -445,7 +148,10 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
 
             # check token if expired payload is Null
             if payload == None:
-                raise HTTPException(status_code=401, detail="Refresh token expired")
+                raise HTTPException(
+                    status_code=401,
+                    detail="Refresh token expired"
+                )
             
             # check token type
             if payload.get("type") != "refresh":
@@ -468,6 +174,9 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
                 session.access_token_hash = Hashing.create_hash(access_token)
                 self.db.commit()
                 self.db.refresh(session)
+
+            print(payload.get("user_id"))
+            print(f"Refreshed access token: {access_token}")
 
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
@@ -536,9 +245,12 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
                 self.db.refresh(session)
             
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="receive_fcm_token",
                 message="FCM token received successfully",
-                data={}
+                data={},
+                next_step={}
             )
         
         except HTTPException:
@@ -575,8 +287,12 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
                 DeletedUserTable.user_id == user.user_id,
                 DeletedUserTable.is_processed == False
             ).first()
+
             if existing_request:
-                raise HTTPException(status_code=409, detail="Delete request already submitted")
+                raise HTTPException(
+                    status_code=status.status.HTTP_409_CONFLICT,
+                    detail="Delete request already submitted"
+                )
 
             # schedule deletion (not immediate)
             scheduled_delete_at = Helpers.utc6dhaka() + timedelta(days=7)
@@ -595,7 +311,10 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             self.db.add(delete_record)
 
             # lock account to prevent further activity
-            settings = self.db.query(SettingsTable).filter(SettingsTable.user_id == user.user_id).first()
+            settings = self.db.query(SettingsTable).filter(
+                SettingsTable.user_id == user.user_id
+            ).first()
+
             if settings:
                 settings.account_deactivated = True
 
@@ -604,6 +323,7 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
                 SessionTable.user_id == user.user_id,
                 SessionTable.is_login == True
             ).all()
+            
             for session in sessions:
                 session.is_login = False
                 session.access_token_hash = None
@@ -646,11 +366,14 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             self.db.refresh(new_notification)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="delete_account_requested",
                 message="Delete request submitted successfully",
                 data={
                     "scheduled_delete_at": scheduled_delete_at
-                }
+                },
+                next_step={}
             )
 
         except HTTPException:
@@ -701,9 +424,12 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             self.db.commit()
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="cancel_delete_account",
                 message="Delete request cancelled successfully",
-                data={}
+                data={},
+                next_step={}
             )
 
         except HTTPException:

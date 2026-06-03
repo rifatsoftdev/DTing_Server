@@ -102,7 +102,7 @@ http://localhost:8000/redoc
 Clone the repository and enter the project directory:
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/rifatsoftdev/Authentication_Server.git
 cd Authentication_Server
 ```
 

@@ -1,18 +1,18 @@
-from fastapi import HTTPException, Request, BackgroundTasks
+from fastapi import HTTPException, Request, BackgroundTasks, status
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 
 from app.constants import String, AnsiColor, ENV
-from app.enums import NotificationType
+from app.enums import NotificationType, UserActivityType
 from app.schema import ForgetPasswordRequest, GlobalResponse, ResetPasswordRequest, ChangePasswordRequest
-from app.model import UserTable, ResetPasswordTable, NotificationTable
+from app.model import UserTable, ResetPasswordTable, NotificationTable, UserActivityTable, SettingsTable
 
 from services.auth.token_service import TokenGenerators
-from app.utils import Hashing
+from app.utils import Hashing, Helpers
 
 from services.auth.user_verification import UserVerificationService
-from services.notification.noticication_services import NotificationServices, NotificationData
+from services.notification.notification_services import NotificationServices, NotificationData
 
 
 templates = Jinja2Templates(directory="templates")
@@ -31,6 +31,7 @@ class PasswordService(TokenGenerators):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
+
 
     def reset_password(self, payload: ForgetPasswordRequest):
         try:
@@ -73,8 +74,12 @@ class PasswordService(TokenGenerators):
                 ResetPasswordTable.expires_at > datetime.now(timezone.utc),
                 ResetPasswordTable.is_used == False
             ).first()
+
             if rst_password:
-                raise HTTPException(status_code=409, detail=String.PASSWORD_RESET_ALREADY_SENT)
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=String.PASSWORD_RESET_ALREADY_SENT
+                )
             
             else:
                 rst_password = ResetPasswordTable(
@@ -88,23 +93,24 @@ class PasswordService(TokenGenerators):
                 self.db.add(rst_password)
                 self.db.flush()
             
-            # send email
+            # Step : Send Email
             notificationServices = NotificationServices(
                 db=self.db,
                 background_tasks=self.background_tasks
             )
+
             notificationServices.send_notification(
                 data=NotificationData(
                     user_id=user.user_id,
+                    email_address=user.email_address,
                     template="auth.password.reset.request",
                     context={
-                        "ip": ip,
                         "name": user.full_name,
                         "email": user.email_address,
                         "reset_link": otp_token,
                     },
                     noty_type=NotificationType.ALERT,
-                    push=False,
+                    push=True,
                     sms=False,
                     email=True
                 )
@@ -120,28 +126,20 @@ class PasswordService(TokenGenerators):
             self.db.add(new_notification)
             self.db.flush()
 
-            # real time notification
-            notificationServices = NotificationServices(
-                db=self.db,
-                background_tasks=self.background_tasks
+            # Log activity
+            activity = UserActivityTable(
+                user_id=user.user_id,
+                activity_type=UserActivityType.PASSWORD_RESET,
+                detail={
+                    "action": "password_reset_requested",
+                    "email": user.email_address,
+                    "device_id": android_id,
+                    "device_uuid": android_uuid
+                },
+                ip_address=ip,
+                user_agent=user_agent
             )
-
-            notificationServices.send_notification(
-                data=NotificationData(
-                    user_id=user.user_id,
-                    template="auth.password.reset.request",
-                    context={
-                        "ip": ip,
-                        "name": user.full_name,
-                        "email": user.email_address,
-                        "reset_link": otp_token,
-                    },
-                    noty_type=NotificationType.ALERT,
-                    push=True,
-                    sms=False,
-                    email=False
-                )
-            )
+            self.db.add(activity)
 
             # db commit and refresh
             self.db.commit()
@@ -149,9 +147,12 @@ class PasswordService(TokenGenerators):
             self.db.refresh(new_notification)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="password_reset",
                 message="Password reset link sent successfully",
-                data={}
+                data={},
+                next_step={}
             )
 
         except HTTPException:
@@ -228,13 +229,19 @@ class PasswordService(TokenGenerators):
             ).first()
 
             if not rst_password:
-                raise HTTPException(status_code=404, detail=String.PASSWORD_RESET_NOT_FOUND)
+                raise HTTPException(
+                    status_code=404,
+                    detail=String.PASSWORD_RESET_NOT_FOUND
+                )
 
             # mark as used
             rst_password.is_used = True
 
+            settings: SettingsTable = user.settings
+
             # update password
             user.password_hash = Hashing.create_hash(new_password)
+            settings.last_password_changed_at = Helpers.utc6dhaka()
 
             # user Notification
             new_notification = NotificationTable(
@@ -246,7 +253,7 @@ class PasswordService(TokenGenerators):
             self.db.add(new_notification)
             self.db.flush()
 
-            # real time notification
+            # Step : Send Notification
             notificationServices = NotificationServices(
                 db=self.db,
                 background_tasks=self.background_tasks
@@ -255,16 +262,32 @@ class PasswordService(TokenGenerators):
             notificationServices.send_notification(
                 data=NotificationData(
                     user_id=user.user_id,
-                    template="auth.password.reset.success",
+                    email_address=user.email_address,
+                    template="auth.password_change",
                     context={
-                        "ip": ip,
+                        "name": user.full_name,
+                        "changed_at": Helpers.utc6dhaka().strftime("%Y-%m-%d %H:%M:%S"),
+                        "ip_address": ip
                     },
                     noty_type=NotificationType.ALERT,
                     push=True,
                     sms=False,
-                    email=False
+                    email=True
                 )
             )
+
+            # Log activity
+            activity = UserActivityTable(
+                user_id=user.user_id,
+                activity_type=UserActivityType.PASSWORD_RESET,
+                detail={
+                    "action": "password_reset_completed",
+                    "status": "success"
+                },
+                ip_address=ip,
+                user_agent=user_agent
+            )
+            self.db.add(activity)
 
             self.db.commit()
             self.db.refresh(new_notification)
@@ -272,9 +295,12 @@ class PasswordService(TokenGenerators):
             self.db.refresh(rst_password)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="password_reset",
                 message="Password reset successful",
-                data={}
+                data={},
+                next_step={}
             )
 
         except HTTPException:
@@ -288,25 +314,35 @@ class PasswordService(TokenGenerators):
     def change_password(self, payload: ChangePasswordRequest):
         try:
             user_id: str = payload.user_id
-            access_token: str = payload.access_token
+            access_token: str = Helpers.authorization(self.authorization) if self.authorization else payload.access_token
             android_id: str = payload.device_id
             android_uuid: str = payload.device_uuid
             user_password: str = payload.user_password
             new_password: str = payload.new_password
+
+            if not access_token:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Missing Authorization header"
+                )
 
             if user_password == new_password:
                 raise HTTPException(status_code=400, detail="New password must be different")
 
             user_verification_service = UserVerificationService(self.db)
 
-            user = user_verification_service.verify_user(
+            user: UserTable = user_verification_service.verify_user(
                 user_id=user_id,
                 access_token=access_token,
                 android_id=android_id,
-                android_uuid=android_uuid
+                android_uuid=android_uuid,
+                password=user_password
             )
 
+            settings: SettingsTable = user.settings
+
             user.password_hash = Hashing.create_hash(new_password)
+            settings.last_password_changed_at = Helpers.utc6dhaka()
 
             ip: str = self.request.client.host
 
@@ -328,25 +364,49 @@ class PasswordService(TokenGenerators):
             notificationServices.send_notification(
                 data=NotificationData(
                     user_id=user.user_id,
-                    template="auth.password.changed",
+                    email_address=user.email_address,
+                    template="auth.password_change",
                     context={
-                        "ip": ip,
+                        "name": user.full_name,
+                        "changed_at": Helpers.utc6dhaka().strftime("%Y-%m-%d %H:%M:%S"),
+                        "ip_address": ip
                     },
                     noty_type=NotificationType.ALERT,
                     push=True,
                     sms=False,
-                    email=False
+                    email=True
                 )
             )
+
+            # Get user agent
+            user_agent: str = self.request.headers.get("user-agent")
+
+            # Log activity
+            activity = UserActivityTable(
+                user_id=user.user_id,
+                activity_type=UserActivityType.PASSWORD_CHANGE,
+                detail={
+                    "action": "password_changed",
+                    "device_id": android_id,
+                    "device_uuid": android_uuid,
+                    "status": "success"
+                },
+                ip_address=ip,
+                user_agent=user_agent
+            )
+            self.db.add(activity)
 
             self.db.commit()
             self.db.refresh(user)
             self.db.refresh(new_notification)
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="password_changed",
                 message="Password changed successfully",
-                data={}
+                data={},
+                next_step={}
             )
 
         except HTTPException:
