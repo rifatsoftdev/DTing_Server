@@ -15,6 +15,7 @@ from services.auth.signup_service import RegistrationService
 from app.model.admin_table import AdminRole
 
 
+
 class SetupServices(RegistrationService):
     def __init__(
         self,

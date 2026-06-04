@@ -6,6 +6,7 @@ from app.model import AppConfigTable
 from app.schema import GlobalResponse
 
 
+
 class SettingsServices:
     def __init__(self, db: Session):
         self.db = db
@@ -26,6 +27,7 @@ class SettingsServices:
 
         return str(value)
 
+
     def get_settings(self) -> GlobalResponse:
         configs = self.db.query(AppConfigTable).order_by(AppConfigTable.key.asc()).all()
         settings = {config.key: config.value for config in configs}
@@ -37,6 +39,7 @@ class SettingsServices:
             message="Settings fetched successfully",
             data={"settings": settings}
         )
+
 
     def update_setting(self, key: str, payload: Dict[str, Any]) -> GlobalResponse:
         config = self.db.query(AppConfigTable).filter(AppConfigTable.key == key).first()

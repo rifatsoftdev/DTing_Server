@@ -260,7 +260,8 @@ async def receive_fcm_token(
 # ==============================================================================
 
 @auth_router.post("/new-access-token")
-async def access_token(
+@auth_router.post("/refresh-access-token")
+async def refresh_access_token(
     payload: AccessTokenRequest,
     request: Request,
     background_tasks: BackgroundTasks,
@@ -274,7 +275,7 @@ async def access_token(
         authorization=authorization
     )
 
-    return accountServices.get_new_access_token(payload=payload)
+    return accountServices.refresh_access_token(payload=payload)
 
 
 

@@ -70,9 +70,9 @@ class SigninService(TokenGenerators, UserRepository):
             device_id: str = payload.device_id
             device_uuid: str = payload.device_uuid
             
-            # Request info
             ip: str = self.request.client.host if self.request and self.request.client else None
             
+
             # Step 1: Find user by email or phone
             user: UserTable = self.check_user_already_exists(
                 email=email_address,
@@ -100,6 +100,7 @@ class SigninService(TokenGenerators, UserRepository):
                     detail=String.ACCOUNT_LOCKED
                 )
 
+
             # Step 2: Check if password is set
             if not user.password_hash:
                 raise HTTPException(
@@ -107,12 +108,14 @@ class SigninService(TokenGenerators, UserRepository):
                     detail=String.PASSWORD_NOT_SET
                 )
 
+
             # Step 3: Verify password
             if (not Hashing.verify_password(user_password, user.password_hash)):
                 raise HTTPException(
                     status_code=401,
                     detail=String.INVALID_PASSWORD
                 )
+
 
             # Step 4: Check email verification
             if (not user.email_verified):
@@ -131,10 +134,12 @@ class SigninService(TokenGenerators, UserRepository):
 
                 return response
 
-            # Step 5: Create tokens and session
+            
             access_token = None
             refresh_token = None
 
+
+            # Step 5: Check 2FA status and methods
             enabled_tfa_methods = self.db.query(TwoFactorTable).filter(
                 TwoFactorTable.user_id == user.user_id,
                 TwoFactorTable.is_enabled == True
@@ -177,6 +182,8 @@ class SigninService(TokenGenerators, UserRepository):
                     data=token_data
                 )
             
+
+            # Step 6: Create or Update Session
             session = self.db.query(SessionTable).filter(
                 SessionTable.user_id == user.user_id,
                 SessionTable.device_id == device_id,
@@ -205,8 +212,10 @@ class SigninService(TokenGenerators, UserRepository):
                     otp_verified=not is_2fa_required
                 )
                 self.db.add(session)
+                self.db.flush(session)
 
-            # user Notification
+
+            # Step 7: Create notification record
             new_notification = NotificationTable(
                 target_id=user.user_id,
                 type=NotificationType.ALERT,
@@ -214,12 +223,40 @@ class SigninService(TokenGenerators, UserRepository):
                 body=f"Your account was logged in from IP {ip} on {Helpers.utc6dhaka()}. If this wasn’t you, change your password immediately."
             )
             self.db.add(new_notification)
+            self.db.flush(new_notification)
 
-            # all commit and refresh
+
+            # Step 8: Send notification alerts
+            notification_services = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+
+            notification_services.send_notification(
+                data=NotificationData(
+                    user_id=user.user_id,
+                    email_address=user.email_address,
+                    event=NotificationEvent.GENERAL_NOTIFICATION,
+                    context={
+                        "name": user.full_name or user.username or "User",
+                        "title": "New Login Detected",
+                        "message": f"Your account was logged in from IP {ip}. If this wasn't you, please secure your account."
+                    },
+                    push=True,
+                    email=True
+                )
+            )
+            
+
+            # Step 9: Finalize database changes
             self.db.commit()
             self.db.refresh(session)
             self.db.refresh(new_notification)
 
+
+            # Step 10: Handle 2FA or direct login response
             if is_2fa_required:
                 request_token: str = self._create_token(
                     token_type="otp_token",
@@ -260,6 +297,8 @@ class SigninService(TokenGenerators, UserRepository):
                     }
                 )
 
+
+            # Step 11: Return Direct Login Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -293,12 +332,14 @@ class SigninService(TokenGenerators, UserRepository):
         payload: LogoutRequest
     ) -> GlobalResponse:
         try:
-            # print(f"Logout attempt: {request}")
+            # Step 0: Extract data from payload and verify user
             user_id: str = payload.user_id
             access_token: str = payload.access_token
             device_id: str = payload.device_id
             device_uuid: str = payload.device_uuid
 
+
+            # Step 1: Verify user session and identity
             user_verification_service = UserVerificationService(self.db)
 
             user: UserTable = user_verification_service.verify_user(
@@ -308,14 +349,8 @@ class SigninService(TokenGenerators, UserRepository):
                 device_uuid=device_uuid
             )
 
-            # Request info
-            # ip:str = request.client.host
-            # user_agent:str = request.headers.get("user-agent")
-            # auth:str = request.headers.get("authorization"),
-            # path:str = request.url.path,
-            # query:dict = dict(request.query_params),
-            # cookies:dict = request.cookies
 
+            # Step 2: Find and update the current session
             session = self.db.query(SessionTable).filter(
                 SessionTable.user_id == user_id,
                 SessionTable.device_id == device_id,
@@ -324,15 +359,24 @@ class SigninService(TokenGenerators, UserRepository):
             ).first()
 
             if not session:
-                raise HTTPException(status_code=404, detail=String.SESSION_NOT_FOUND)
+                raise HTTPException(
+                    status_code=404,
+                    detail=String.SESSION_NOT_FOUND
+                )
             
+            session.access_token_hash = None
+            session.refresh_token_hash = None
             session.is_login = False
             session.fcm_token = None
             session.logout_at = Helpers.utc6dhaka()
             
+
+            # Step 3: Finalize database changes
             self.db.commit()
             self.db.refresh(session)
 
+
+            # Return Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -354,11 +398,14 @@ class SigninService(TokenGenerators, UserRepository):
     # This will log out all sessions of the user across all devices
     def logout_all(self, payload: LogoutAllRequest):
         try:
+            # Step 1: Extract data from payload
             user_id: str = payload.user_id
             access_token: str = payload.access_token
             android_id: str = payload.device_id
             android_uuid: str = payload.device_uuid
 
+
+            # Step 2: Verify user session and identity
             user_verification_service = UserVerificationService(
                 db=self.db,
                 background_tasks=self.background_tasks,
@@ -366,13 +413,15 @@ class SigninService(TokenGenerators, UserRepository):
                 authorization=self.authorization
             )
 
-            user = user_verification_service.verify_user(
+            user: UserTable = user_verification_service.verify_user(
                 user_id=user_id,
                 access_token=access_token,
                 android_id=android_id,
                 android_uuid=android_uuid
             )
 
+
+            # Step 3: Find and update all active sessions
             sessions = self.db.query(SessionTable).filter(
                 SessionTable.user_id == user_id,
                 SessionTable.is_login == True
@@ -385,8 +434,12 @@ class SigninService(TokenGenerators, UserRepository):
                 session.refresh_token_hash = None
                 session.logout_at = Helpers.utc6dhaka()
 
+
+            # Step 4: Finalize database changes
             self.db.commit()
 
+
+            # Step 5: Return Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,

@@ -129,17 +129,13 @@ class RegistrationService(UserRepository, TokenGenerators):
         return new_user
     
     # Signup function
-    def signup(
-        self,
-        payload: RegisterRequest
-    ) -> GlobalResponse:
+    def signup(self, payload: RegisterRequest) -> GlobalResponse:
         """ Register a user """
         try:
-            # Helpers.print_payload(payload)
-
-            # Step 1: Check User
+            
             ip: str = self.request.client.host
 
+            # Step 1: Check if user already exists and validate country
             country = self.db.query(CountryTable).filter(
                 CountryTable.country_code == payload.country_code
             ).first()

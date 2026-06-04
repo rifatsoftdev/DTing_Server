@@ -61,37 +61,30 @@ class PushTemplate:
             "body": f"Hello {name}, your password was changed from IP {ip_address}. Secure your account if this was not you.",
         } 
 
-
-    
-
-
-    
-
-    
-
     @staticmethod
-    def email_changed_push_template(name: str, old_email: str, new_email: str) -> Dict[str, str]:
+    def email_changed_template(name: str, old_email: str, new_email: str) -> Dict[str, str]:
         return {
             "title": "Email Address Changed",
             "body": f"Hello {name}, your email changed to {new_email}. Contact support if this was not you.",
         }
-
+    
     @staticmethod
-    def two_factor_enabled_push_template(name: str) -> Dict[str, str]:
+    def two_factor_enabled_template(name: str) -> Dict[str, str]:
         return {
             "title": "Two-Factor Authentication Enabled",
             "body": f"Hello {name}, two-factor authentication is now enabled.",
         }
 
     @staticmethod
-    def two_factor_disabled_push_template(name: str) -> Dict[str, str]:
+    def two_factor_disabled_template(name: str) -> Dict[str, str]:
         return {
             "title": "Two-Factor Authentication Disabled",
             "body": f"Hello {name}, two-factor authentication was disabled. Secure your account if this was not you.",
         }
+    
 
     @staticmethod
-    def account_locked_push_template(name: str, unlock_time: str = None) -> Dict[str, str]:
+    def account_locked_template(name: str, unlock_time: str = None) -> Dict[str, str]:
         unlock_text = f" Try again after {unlock_time}." if unlock_time else ""
         return {
             "title": "Account Locked",
@@ -99,42 +92,42 @@ class PushTemplate:
         }
 
     @staticmethod
-    def account_unlocked_push_template(name: str) -> Dict[str, str]:
+    def account_unlocked_template(name: str) -> Dict[str, str]:
         return {
             "title": "Account Unlocked",
             "body": f"Hello {name}, your account has been unlocked.",
         }
 
     @staticmethod
-    def email_verification_push_template(name: str, verification_link: str) -> Dict[str, str]:
+    def email_verification_template(name: str, verification_link: str) -> Dict[str, str]:
         return {
             "title": "Verify Your Email Address",
             "body": f"Hello {name}, tap to verify your email address.",
         }
 
     @staticmethod
-    def password_reset_success_push_template(name: str) -> Dict[str, str]:
+    def password_reset_success_template(name: str) -> Dict[str, str]:
         return {
             "title": "Password Reset Successful",
             "body": f"Hello {name}, your password has been reset successfully.",
         }
 
     @staticmethod
-    def recovery_code_push_template(name: str, recovery_codes: List[str]) -> Dict[str, str]:
+    def recovery_code_template(name: str, recovery_codes: List[str]) -> Dict[str, str]:
         return {
             "title": "Your Recovery Codes",
             "body": f"Hello {name}, new recovery codes were generated. Keep them secure.",
         }
 
     @staticmethod
-    def account_deleted_push_template(name: str) -> Dict[str, str]:
+    def account_deleted_template(name: str) -> Dict[str, str]:
         return {
             "title": "Account Deleted",
             "body": f"Hello {name}, your account has been deleted successfully.",
         }
-
+    
     @staticmethod
-    def account_deactivated_push_template(name: str, reason: str = None) -> Dict[str, str]:
+    def account_deactivated_template(name: str, reason: str = None) -> Dict[str, str]:
         reason_text = f" Reason: {reason}." if reason else ""
         return {
             "title": "Account Deactivated",
@@ -142,51 +135,53 @@ class PushTemplate:
         }
 
     @staticmethod
-    def account_reactivated_push_template(name: str) -> Dict[str, str]:
+    def account_reactivated_template(name: str) -> Dict[str, str]:
         return {
             "title": "Account Reactivated",
             "body": f"Hello {name}, your account has been reactivated.",
         }
-
+    
     @staticmethod
-    def subscription_expiry_push_template(name: str, expiry_date: str) -> Dict[str, str]:
+    def subscription_expiry_template(name: str, expiry_date: str) -> Dict[str, str]:
         return {
             "title": "Subscription Expiry Notice",
             "body": f"Hello {name}, your subscription expires on {expiry_date}.",
         }
 
     @staticmethod
-    def maintenance_notification_push_template(name: str, maintenance_time: str) -> Dict[str, str]:
+    def maintenance_notification_template(name: str, maintenance_time: str) -> Dict[str, str]:
         return {
             "title": "Scheduled Maintenance",
             "body": f"{String.COMPANY_NAME} maintenance is scheduled for {maintenance_time}.",
         }
 
     @staticmethod
-    def terms_update_push_template(name: str) -> Dict[str, str]:
+    def terms_update_template(name: str) -> Dict[str, str]:
         return {
             "title": "Terms and Conditions Updated",
             "body": f"Hello {name}, our terms and conditions have been updated.",
         }
 
     @staticmethod
-    def admin_alert_push_template(title: str, message: str) -> Dict[str, str]:
+    def admin_alert_template(title: str, message: str) -> Dict[str, str]:
         return {
             "title": title,
             "body": f"Admin alert: {message}"
         }
 
     @staticmethod
-    def api_key_created_push_template(name: str, key_name: str) -> Dict[str, str]:
+    def api_key_created_template(name: str, key_name: str) -> Dict[str, str]:
         return {
             "title": "API Key Created",
             "body": f"Hello {name}, API key '{key_name}' was created.",
         }
 
     @staticmethod
-    def api_key_revoked_push_template(name: str, key_name: str) -> Dict[str, str]:
+    def api_key_revoked_template(name: str, key_name: str) -> Dict[str, str]:
         return {
             "title": "API Key Revoked",
             "body": f"Hello {name}, API key '{key_name}' was revoked.",
         }
-    
+
+
+

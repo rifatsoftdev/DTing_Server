@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.constants import AnsiColor, String, ENV
 from app.enums import NotificationType
-from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable, TwoFactorTable, UserTable
+from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable, UserTable
 from app.schema import (
-    GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest, LoginRequest,
+    GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest,
     FCMTokenRequest, AccessTokenRequest, SetUsernameRequest
 )
 from app.utils import Hashing, Helpers
@@ -21,6 +21,7 @@ from services.auth.signup_service import RegistrationService
 
 from services.notification.notification_services import NotificationServices, NotificationData, NotificationEvent
 from services.auth.signin_service import SigninService
+
 
 
 class AccountServices(OTPService, SigninService):
@@ -70,14 +71,19 @@ class AccountServices(OTPService, SigninService):
         visible_prefix = min(4, len(phone_number) - 2)
         return f"{phone_number[:visible_prefix]}{'*' * (len(phone_number) - visible_prefix - 2)}{phone_number[-2:]}"
 
+
+    # username Set or Change
     def set_username(self, payload: SetUsernameRequest) -> GlobalResponse:
         try:
+            # Step 1: Extract data from payload
             user_id: str = payload.user_id
             access_token: str = payload.access_token
             android_id: str = payload.device_id
             android_uuid: str = payload.device_uuid
             username: str = payload.username.strip()
 
+            
+            # Step 2: Verify user
             user_verification_service = UserVerificationService(
                 db=self.db,
                 background_tasks=self.background_tasks,
@@ -85,27 +91,57 @@ class AccountServices(OTPService, SigninService):
                 authorization=self.authorization
             )
 
-            user = user_verification_service.verify_user(
+            user: UserTable = user_verification_service.verify_user(
                 user_id=user_id,
                 access_token=access_token,
                 device_id=android_id,
                 device_uuid=android_uuid
             )
 
+
+            # Step 3: Check if username is already taken by another user
             existing_username = self.db.query(UserTable).filter(
                 UserTable.username == username,
                 UserTable.user_id != user.user_id
             ).first()
+
             if existing_username:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Username already taken"
                 )
 
-            user.username = username
-            self.db.commit()
-            self.db.refresh(user)
 
+            # Step 4: Update username
+            old_username = user.username
+            user.username = username
+            
+
+            # Step 5: Notify user
+            notification_services = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+
+            notification_services.send_notification(
+                data=NotificationData(
+                    user_id=user.user_id,
+                    email_address=user.email_address,
+                    event=NotificationEvent.GENERAL_NOTIFICATION,
+                    context={
+                        "name": user.full_name or user.username or "User",
+                        "title": "Username Updated",
+                        "message": f"Your username has been successfully changed from @{old_username} to @{username}."
+                    },
+                    push=True,
+                    email=True
+                )
+            )
+            
+
+            # Step 6: Return Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -125,38 +161,59 @@ class AccountServices(OTPService, SigninService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-    def get_new_access_token(self, payload: AccessTokenRequest) -> GlobalResponse:
+
+    # Get a New Access Token Using Refresh Token
+    def refresh_access_token(self, payload: AccessTokenRequest) -> GlobalResponse:
         try:
-            # get data
+            # Step 1: Extract data from payload
             refresh_token = payload.refresh_token
             user_id = payload.user_id
-            android_id = payload.device_id
-            android_uuid = payload.device_uuid
+            device_id = payload.device_id
+            device_uuid = payload.device_uuid
+            
 
+            # Step 2: Verify session and token
             session = self.db.query(SessionTable).filter(
-                SessionTable.device_id == android_id,
-                SessionTable.device_uuid == android_uuid
+                SessionTable.device_id == device_id,
+                SessionTable.device_uuid == device_uuid
             ).first()
 
             if (not session):
-                raise HTTPException(status_code=404, detail=String.SESSION_NOT_FOUND)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.SESSION_NOT_FOUND
+                )
 
             if (not session.is_login or not session.otp_verified):
-                raise HTTPException(status_code=401, detail=String.USER_NOT_LOGIN)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.USER_NOT_LOGIN
+                )
 
-            payload = self._decode_token(refresh_token)
 
-            # check token if expired payload is Null
+            # Step 3: Decode and validate refresh token
+            payload: dict = self._decode_token(refresh_token)
+
             if payload == None:
                 raise HTTPException(
                     status_code=401,
-                    detail="Refresh token expired"
+                    detail="Refresh Token Expired"
                 )
             
-            # check token type
             if payload.get("type") != "refresh":
-                raise HTTPException(status_code=401, detail="Invalid token")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid Token"
+                )
+            
+            if payload.get("user_id") != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User ID mismatch"
+                )
 
+
+            # Step 4: Generate new access token
             access_token = self._create_token(
                 expire_min=ENV.ACCESS_EXPIRE,
                 data={
@@ -167,17 +224,21 @@ class AccountServices(OTPService, SigninService):
                 }
             )
 
-            # update session
-            session = self.db.query(SessionTable).filter(SessionTable.user_id == payload.get("user_id")).first()
+
+            # Step 5: Update session with new access token hash
+            session: SessionTable = self.db.query(SessionTable).filter(
+                SessionTable.user_id == payload.get("user_id"),
+                SessionTable.device_id == device_id,
+                SessionTable.device_uuid == device_uuid
+            ).first()
 
             if session:
                 session.access_token_hash = Hashing.create_hash(access_token)
                 self.db.commit()
                 self.db.refresh(session)
 
-            print(payload.get("user_id"))
-            print(f"Refreshed access token: {access_token}")
 
+            # Return Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -197,18 +258,19 @@ class AccountServices(OTPService, SigninService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
     
+
+    # FCM token receive from user
     def receive_fcm_token(self, payload: FCMTokenRequest) -> GlobalResponse:
         try:
-            # print(f"FCM token received: {request}")
-
-            # get data
+            # Step 1: Extract data from payload
             user_id: str = payload.user_id
             access_token: str = payload.access_token
-            android_id: str = payload.device_id
-            android_uuid: str = payload.device_uuid
+            device_id: str = payload.device_id
+            device_uuid: str = payload.device_uuid
             fcm_token: str = payload.fcm_token
             
-            # verify user
+
+            # Step 2: Verify user
             user_verification_service = UserVerificationService(
                 db=self.db,
                 background_tasks=self.background_tasks,
@@ -216,34 +278,37 @@ class AccountServices(OTPService, SigninService):
                 authorization=self.authorization
             )
 
-            user = user_verification_service.verify_user(
+            user: UserTable = user_verification_service.verify_user(
                 user_id=user_id,
                 access_token=access_token,
-                device_id=android_id,
-                device_uuid=android_uuid
+                device_id=device_id,
+                device_uuid=device_uuid
             )
 
-            # find db
-            existing = self.db.query(SessionTable).filter(
-                SessionTable.user_id==user_id,
-                SessionTable.device_id==android_id,
-                SessionTable.device_uuid==android_uuid,
-                SessionTable.is_login==True
-            ).first()
-            
-            if existing:
-                existing.fcm_token = fcm_token
-                self.db.commit()
-                self.db.refresh(existing)
-            else:
-                session = SessionTable(
-                    user_id=user_id,
-                    fcm_token=fcm_token
+            # Step 3: Update current session FCM token
+            user_sessions: list[SessionTable] = user.sessions
+            current_session = next(
+                (
+                    session for session in user_sessions
+                    if session.device_id == device_id
+                    and session.device_uuid == device_uuid
+                    and session.is_login
+                ),
+                None
+            )
+
+            if not current_session:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.SESSION_NOT_FOUND
                 )
-                self.db.add(session)
-                self.db.commit()
-                self.db.refresh(session)
+
+            current_session.fcm_token = fcm_token
+            self.db.commit()
+            self.db.refresh(current_session)
             
+
+            # Step 4: Return Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -261,8 +326,11 @@ class AccountServices(OTPService, SigninService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-    def delete_account(self, payload: DeleteAccountRequest):
+
+    # User Account Delete Request
+    def delete_account(self, payload: DeleteAccountRequest) -> GlobalResponse:
         try:
+            # Step 1: Extract data from payload
             user_id: str = payload.user_id
             access_token: str = payload.access_token
             android_id: str = payload.device_id
@@ -270,9 +338,10 @@ class AccountServices(OTPService, SigninService):
             user_password: str = payload.user_password
             reason: str = payload.reason
 
-            # Request info
             ip: str = self.request.client.host
 
+
+            # Step 2: Verify user
             user_verification_service = UserVerificationService(self.db)
 
             user = user_verification_service.verify_user(
@@ -282,7 +351,8 @@ class AccountServices(OTPService, SigninService):
                 android_uuid=android_uuid
             )
 
-            # check existing delete request
+
+            # Step 3: check existing delete request
             existing_request = self.db.query(DeletedUserTable).filter(
                 DeletedUserTable.user_id == user.user_id,
                 DeletedUserTable.is_processed == False
@@ -290,11 +360,20 @@ class AccountServices(OTPService, SigninService):
 
             if existing_request:
                 raise HTTPException(
-                    status_code=status.status.HTTP_409_CONFLICT,
+                    status_code=status.HTTP_409_CONFLICT,
                     detail="Delete request already submitted"
                 )
 
-            # schedule deletion (not immediate)
+            
+            # Step 4: Verify password
+            if not Hashing.verify_hash(user_password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect password"
+                )
+            
+
+            # Step 5: Schedule deletion and update account status 
             scheduled_delete_at = Helpers.utc6dhaka() + timedelta(days=7)
 
             delete_record = DeletedUserTable(
@@ -310,7 +389,6 @@ class AccountServices(OTPService, SigninService):
             )
             self.db.add(delete_record)
 
-            # lock account to prevent further activity
             settings = self.db.query(SettingsTable).filter(
                 SettingsTable.user_id == user.user_id
             ).first()
@@ -318,7 +396,58 @@ class AccountServices(OTPService, SigninService):
             if settings:
                 settings.account_deactivated = True
 
-            # logout all sessions
+
+            # Step 6: Create notification record and send alerts
+            notification_body = f"We received a delete account request from IP {ip}. Your account will be removed after review."
+            new_notification = NotificationTable(
+                target_id=user.user_id,
+                type=NotificationType.ALERT,
+                title="Delete Account Requested",
+                body=notification_body
+            )
+            self.db.add(new_notification)
+            self.db.flush(new_notification)
+
+            active_session = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user.user_id,
+                SessionTable.is_login == True,
+                SessionTable.fcm_token.isnot(None)
+            ).order_by(SessionTable.last_seen_at.desc()).first()
+
+            phone_number = None
+            if user.phone_number:
+                phone_number = f"{user.country_code or ''}{user.phone_number}"
+
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+
+            notificationServices.send_notification(
+                data=NotificationData(
+                    user_id=user.user_id,
+                    email_address=user.email_address,
+                    phone_number=phone_number,
+                    fcm_token=active_session.fcm_token if active_session else None,
+                    event=NotificationEvent.ACCOUNT_DEACTIVATED,
+                    context={
+                        "name": user.full_name or user.username or "User",
+                        "reason": notification_body,
+                    },
+                    payload={
+                        "event": NotificationEvent.ACCOUNT_DEACTIVATED.value,
+                        "reason": "delete_account_requested"
+                    },
+                    push=True,
+                    email=True,
+                    sms=False
+                )
+            )
+
+
+            # Step 7: Logout from all devices
             sessions = self.db.query(SessionTable).filter(
                 SessionTable.user_id == user.user_id,
                 SessionTable.is_login == True
@@ -331,40 +460,14 @@ class AccountServices(OTPService, SigninService):
                 session.fcm_token = None
                 session.logout_at = Helpers.utc6dhaka()
 
-            # user Notification
-            new_notification = NotificationTable(
-                target_id=user.user_id,
-                type=NotificationType.ALERT,
-                title="Delete Account Requested",
-                body=f"We received a delete account request from IP {ip}. Your account will be removed after review."
-            )
-            self.db.add(new_notification)
-
-            # real time notification
-            notificationServices = NotificationServices(
-                db=self.db,
-                background_tasks=self.background_tasks
-            )
-
-            notificationServices.send_notification(
-                data=NotificationData(
-                    target_id=user.user_id,
-                    type=NotificationType.ALERT,
-                    title="Delete Account Requested",
-                    template="admin.custom",
-                    context={
-                        "body": f"We received a delete account request from IP {ip}. Your account will be removed after review.",
-                    },
-                    push=True,
-                    email=True,
-                    sms=False
-                )
-            )
-
+            
+            # Step 8: Finalize database changes
             self.db.commit()
             self.db.refresh(delete_record)
             self.db.refresh(new_notification)
 
+            
+            # Step 9: Return Responce
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -384,23 +487,38 @@ class AccountServices(OTPService, SigninService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # User Account Cancel Delete Request
     def cancel_delete_account(self, payload: CancelDeleteAccountRequest) -> GlobalResponse:
         try:
+            # Step 1: Extract payload data
             user_id: str = payload.user_id
             access_token: str = payload.access_token
             android_id: str = payload.device_id
             android_uuid: str = payload.device_uuid
             user_password: str = payload.user_password
 
+
+            # Step 2: Verify user
             user_verification_service = UserVerificationService(self.db)
 
-            user = user_verification_service.verify_user(
+            user: UserTable = user_verification_service.verify_user(
                 user_id=user_id,
                 access_token=access_token,
                 android_id=android_id,
                 android_uuid=android_uuid
             )
 
+
+            # Step 3: Verify password
+            if not Hashing.verify_hash(user_password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect password"
+                )
+
+
+            # Step 4: Find and remove the delete request
             delete_request = self.db.query(DeletedUserTable).filter(
                 DeletedUserTable.user_id == user_id,
                 DeletedUserTable.is_processed == False
@@ -414,15 +532,56 @@ class AccountServices(OTPService, SigninService):
 
             self.db.delete(delete_request)
 
-            settings = self.db.query(SettingsTable).filter(
-                SettingsTable.user_id == user_id
-            ).first()
+
+            # Step 5:  Reactivate account settings
+            settings: SettingsTable = user.settings
 
             if settings:
                 settings.account_deactivated = False
 
-            self.db.commit()
 
+            # Step 6: Create notification record and send alerts
+            reactivated_notification = NotificationTable(
+                target_id=user.user_id,
+                type=NotificationType.ALERT,
+                title="Delete Account Cancelled",
+                body="Your delete account request was cancelled and your account has been reactivated."
+            )
+            self.db.add(reactivated_notification)
+            self.db.flush(reactivated_notification)
+
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+
+            notificationServices.send_notification(
+                data=NotificationData(
+                    user_id=user.user_id,
+                    email_address=user.email_address,
+                    event=NotificationEvent.ACCOUNT_REACTIVATED,
+                    context={
+                        "name": user.full_name or user.username or "User",
+                    },
+                    payload={
+                        "event": NotificationEvent.ACCOUNT_REACTIVATED.value,
+                        "reason": "delete_account_cancelled"
+                    },
+                    push=True,
+                    email=True,
+                    sms=False
+                )
+            )
+
+
+            # Step 7: Finalize database changes
+            self.db.commit()
+            self.db.refresh(reactivated_notification)
+
+
+            # Step 8: Return Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -439,9 +598,6 @@ class AccountServices(OTPService, SigninService):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
-
-
 
 
 

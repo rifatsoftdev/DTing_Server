@@ -18,6 +18,7 @@ from services.notification.notification_services import NotificationServices, No
 templates = Jinja2Templates(directory="templates")
 
 
+
 class PasswordService(TokenGenerators):
     def __init__(
         self,
@@ -31,18 +32,15 @@ class PasswordService(TokenGenerators):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
-
-
-    def reset_password(self, payload: ForgetPasswordRequest):
+    
+    # Forget password 
+    def reset_password(self, payload: ForgetPasswordRequest) -> GlobalResponse:
         try:
-            # print(f"Forget password attempt: {request}")
-
-            # request data
+            # Step 1: Extract data from payload
             email_address: str= payload.email_address
             android_id: str = payload.device_id
             android_uuid: str = payload.device_uuid
             
-            # Request info
             ip: str = self.request.client.host
             user_agent: str = self.request.headers.get("user-agent")
             auth: str = self.request.headers.get("authorization"),
@@ -51,13 +49,20 @@ class PasswordService(TokenGenerators):
             cookies: dict = self.request.cookies
 
 
-            # find user
-            user = self.db.query(UserTable).filter(UserTable.email_address == email_address).first()
-            if not user:
-                raise HTTPException(status_code=404, detail=String.USER_NOT_FOUND)
+            # Step 2: Check if user exists
+            user: UserTable = self.db.query(UserTable).filter(
+                UserTable.email_address == email_address
+            ).first()
 
-            # generate token
-            otp_token = self._create_token(
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, 
+                    detail=String.USER_NOT_FOUND
+                )
+
+
+            # Step 3: Generate Reset Token
+            otp_token: str = self._create_token(
                 token_type="otp",
                 expire_min=ENV.PASS_RST_TOKEN_EXPIRE_MIN,
                 data={
@@ -68,7 +73,8 @@ class PasswordService(TokenGenerators):
                 }
             )
 
-            # check old password reset
+
+            # Step 4: Check old password reset
             rst_password = self.db.query(ResetPasswordTable).filter(
                 ResetPasswordTable.user_email == user.email_address,
                 ResetPasswordTable.expires_at > datetime.now(timezone.utc),
@@ -81,19 +87,21 @@ class PasswordService(TokenGenerators):
                     detail=String.PASSWORD_RESET_ALREADY_SENT
                 )
             
-            else:
-                rst_password = ResetPasswordTable(
-                    user_email=email_address,
-                    password_token=otp_token,
-                    device_id=android_id,
-                    device_uuid=android_uuid,
-                    is_used=False,
-                    expires_at=datetime.now(timezone.utc) + timedelta(minutes=15)
-                )
-                self.db.add(rst_password)
-                self.db.flush()
+
+            # Step 5: Create Reset Password Record
+            rst_password = ResetPasswordTable(
+                user_email=email_address,
+                password_token=otp_token,
+                device_id=android_id,
+                device_uuid=android_uuid,
+                is_used=False,
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=15)
+            )
+            self.db.add(rst_password)
+            self.db.flush()
             
-            # Step : Send Email
+
+            # Step 6: Send Email
             notificationServices = NotificationServices(
                 db=self.db,
                 background_tasks=self.background_tasks
@@ -116,7 +124,8 @@ class PasswordService(TokenGenerators):
                 )
             )
             
-            # user Notification
+
+            # Step 7: User Notification
             new_notification = NotificationTable(
                 target_id=user.user_id,
                 type=NotificationType.ALERT,
@@ -126,7 +135,8 @@ class PasswordService(TokenGenerators):
             self.db.add(new_notification)
             self.db.flush()
 
-            # Log activity
+
+            # Step 8: Log activity
             activity = UserActivityTable(
                 user_id=user.user_id,
                 activity_type=UserActivityType.PASSWORD_RESET,
@@ -141,11 +151,14 @@ class PasswordService(TokenGenerators):
             )
             self.db.add(activity)
 
-            # db commit and refresh
+
+            # Step 9: Commit and refresh db
             self.db.commit()
             self.db.refresh(rst_password)
             self.db.refresh(new_notification)
 
+
+            # Step 10: Return Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -163,14 +176,22 @@ class PasswordService(TokenGenerators):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # Render Reset Password Page
     def reset_password_page(self, password_token: str):
         try:
+            # Step 1: Decode and validate the password token
             payload = self._decode_token(password_token)
 
             if not payload:
                 return templates.TemplateResponse("expired.html", {"request": self.request})
 
-            user = self.db.query(UserTable).filter(UserTable.user_id == payload["user_id"]).first()
+
+            # Step 2: Check if user and reset record exist
+            user: UserTable = self.db.query(UserTable).filter(
+                UserTable.user_id == payload["user_id"]
+            ).first()
+
             if not user:
                 return templates.TemplateResponse("expired.html", {"request": self.request})
 
@@ -183,6 +204,8 @@ class PasswordService(TokenGenerators):
             if not rst_password:
                 return templates.TemplateResponse("expired.html", {"request": self.request})
 
+
+            # Step 3: Return the reset password template
             return templates.TemplateResponse("reset_password.html", {
                 "request": self.request,
                 "password_token": password_token
@@ -195,13 +218,14 @@ class PasswordService(TokenGenerators):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # Set New Password after reset request
     def set_password(self, payload: ResetPasswordRequest):
         try:
-            # print(f"Reset password attempt: {request}")
+            # Step 1: Extract data from payload
             reset_token = payload.password_token
             new_password = payload.new_password
 
-            # Request info
             ip: str = self.request.client.host
             user_agent: str = self.request.headers.get("user-agent")
             auth: str = self.request.headers.get("authorization"),
@@ -209,20 +233,30 @@ class PasswordService(TokenGenerators):
             query: dict = dict(self.request.query_params),
             cookies: dict = self.request.cookies
 
-            # check token
-            payload = self._decode_token(reset_token)
+
+            # Step 2: Decode and validate the password token
+            payload: dict = self._decode_token(reset_token)
 
             if not payload:
-                raise HTTPException(status_code=400, detail=String.INVALID_OR_EXPIRED_TOKEN)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=String.INVALID_OR_EXPIRED_TOKEN
+                )
 
-            user = self.db.query(UserTable).filter(
+
+            # Step 3: Check if user exists
+            user: UserTable = self.db.query(UserTable).filter(
                 UserTable.user_id == payload["user_id"]
             ).first()
 
             if not user:
-                raise HTTPException(status_code=404, detail=String.USER_NOT_FOUND)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.USER_NOT_FOUND
+                )
 
-            # check old password reset
+
+            # Step 4: Check old password reset
             rst_password = self.db.query(ResetPasswordTable).filter(
                 ResetPasswordTable.user_email == user.email_address,
                 ResetPasswordTable.is_used == False
@@ -234,16 +268,16 @@ class PasswordService(TokenGenerators):
                     detail=String.PASSWORD_RESET_NOT_FOUND
                 )
 
-            # mark as used
             rst_password.is_used = True
 
-            settings: SettingsTable = user.settings
 
-            # update password
+            # Step 5: update password and settings
+            settings: SettingsTable = user.settings
             user.password_hash = Hashing.create_hash(new_password)
             settings.last_password_changed_at = Helpers.utc6dhaka()
 
-            # user Notification
+
+            # Step 6: user Notification
             new_notification = NotificationTable(
                 target_id=user.user_id,
                 type=NotificationType.ALERT,
@@ -253,7 +287,8 @@ class PasswordService(TokenGenerators):
             self.db.add(new_notification)
             self.db.flush()
 
-            # Step : Send Notification
+
+            # Step 7: Send Notification
             notificationServices = NotificationServices(
                 db=self.db,
                 background_tasks=self.background_tasks
@@ -276,7 +311,8 @@ class PasswordService(TokenGenerators):
                 )
             )
 
-            # Log activity
+
+            # Step 8: Log activity
             activity = UserActivityTable(
                 user_id=user.user_id,
                 activity_type=UserActivityType.PASSWORD_RESET,
@@ -294,6 +330,8 @@ class PasswordService(TokenGenerators):
             self.db.refresh(user)
             self.db.refresh(rst_password)
 
+
+            # Step 9: Return Response 
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -311,27 +349,25 @@ class PasswordService(TokenGenerators):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # Change Password
     def change_password(self, payload: ChangePasswordRequest):
         try:
+            # Step 1: Extract data from payload
             user_id: str = payload.user_id
-            access_token: str = Helpers.authorization(self.authorization) if self.authorization else payload.access_token
             android_id: str = payload.device_id
+            access_token: str = payload.access_token
             android_uuid: str = payload.device_uuid
             user_password: str = payload.user_password
             new_password: str = payload.new_password
 
-            if not access_token:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Missing Authorization header"
-                )
+            ip: str = self.request.client.host
 
-            if user_password == new_password:
-                raise HTTPException(status_code=400, detail="New password must be different")
 
+            # Step 2: Verify user
             user_verification_service = UserVerificationService(self.db)
-
-            user: UserTable = user_verification_service.verify_user(
+            
+            user: UserTable = user_verification_service.verify_authorization(
                 user_id=user_id,
                 access_token=access_token,
                 android_id=android_id,
@@ -339,13 +375,30 @@ class PasswordService(TokenGenerators):
                 password=user_password
             )
 
-            settings: SettingsTable = user.settings
 
+            # Step 3: Check current password
+            if not Hashing.verify_hash(user_password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect current password"
+                )
+            
+
+            # Step 4: Check if new password is same as old password
+            if user_password == new_password:
+                raise HTTPException(
+                    status_code=400,
+                    detail="New password must be different"
+                )
+
+            
+            # Step 5: Update password and settings
             user.password_hash = Hashing.create_hash(new_password)
+            settings: SettingsTable = user.settings
             settings.last_password_changed_at = Helpers.utc6dhaka()
 
-            ip: str = self.request.client.host
-
+            
+            # Step 6: Create notification record and send alerts
             new_notification = NotificationTable(
                 target_id=user.user_id,
                 type=NotificationType.ALERT,
@@ -355,7 +408,6 @@ class PasswordService(TokenGenerators):
             self.db.add(new_notification)
             self.db.flush()
 
-            # real time notification
             notificationServices = NotificationServices(
                 db=self.db,
                 background_tasks=self.background_tasks
@@ -378,10 +430,10 @@ class PasswordService(TokenGenerators):
                 )
             )
 
-            # Get user agent
+            
+            # Step 7: Log activity
             user_agent: str = self.request.headers.get("user-agent")
 
-            # Log activity
             activity = UserActivityTable(
                 user_id=user.user_id,
                 activity_type=UserActivityType.PASSWORD_CHANGE,
@@ -395,11 +447,16 @@ class PasswordService(TokenGenerators):
                 user_agent=user_agent
             )
             self.db.add(activity)
+            self.db.flush(activity)
 
+
+            # Step 8: Finalize database changes
             self.db.commit()
             self.db.refresh(user)
             self.db.refresh(new_notification)
 
+
+            # Step 9: Return Response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,

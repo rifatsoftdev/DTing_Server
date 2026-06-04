@@ -223,11 +223,11 @@ class GoogleOauth(TokenGenerators):
                 ENV.GOOGLE_CLIENT_ID
             )
 
-            google_id = idinfo["sub"]
-            email_address = idinfo.get("email")
+            google_id: str = idinfo["sub"]
+            email_address: str = idinfo.get("email")
             email_verified = idinfo.get("email_verified")
-            full_name = idinfo.get("name")
-            profile_image_url = idinfo.get("picture")
+            full_name: str = idinfo.get("name")
+            profile_image_url: str = idinfo.get("picture")
 
             if not email_address:
                 raise HTTPException(
@@ -264,6 +264,7 @@ class GoogleOauth(TokenGenerators):
 
             ip: str = self.request.client.host
 
+
             # Step 2: Create notification
             new_notification = NotificationTable(
                 target_id=user.user_id,
@@ -273,6 +274,7 @@ class GoogleOauth(TokenGenerators):
             )
             self.db.add(new_notification)
             self.db.flush()
+
 
             # Step 3: Send Notification
             notification_service = NotificationServices(
@@ -296,11 +298,14 @@ class GoogleOauth(TokenGenerators):
                 )
             )
 
+            
+            # Step 4: Finalize database changes
             self.db.commit()
             self.db.refresh(user)
             self.db.refresh(new_notification)
 
-            # Step 4: Return response
+
+            # Step 5: Return response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,

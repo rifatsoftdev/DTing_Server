@@ -240,8 +240,9 @@ class UserServices:
             )
             user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
 
+
             # Step 2: Fetch user profile data
-            user = self.db.query(UserTable).filter(
+            user: UserTable = self.db.query(UserTable).filter(
                 UserTable.user_id == user_id
             ).first()
 
@@ -250,6 +251,7 @@ class UserServices:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=String.USER_NOT_FOUND
                 )
+
 
             # Step 3: Return profile response
             return GlobalResponse(
@@ -295,8 +297,9 @@ class UserServices:
             )
             user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
 
+
             # Step 2: Fetch user settings data
-            user = self.db.query(UserTable).filter(
+            user: UserTable = self.db.query(UserTable).filter(
                 UserTable.user_id == user_id
             ).first()
 
@@ -333,8 +336,11 @@ class UserServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # a function to get all user information (profile)
     def get_me(self) -> GlobalResponse:
         try:
+            # Step 1: Extract and validate access token
             userVerificationService = UserVerificationService(
                 db=self.db,
                 background_tasks=self.background_tasks,
@@ -343,7 +349,9 @@ class UserServices:
             )
             user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
 
-            user = self.db.query(UserTable).filter(
+
+            # Step 2: Fetch user data
+            user: UserTable = self.db.query(UserTable).filter(
                 UserTable.user_id == user_id
             ).first()
 
@@ -353,15 +361,16 @@ class UserServices:
                     detail=String.USER_NOT_FOUND
                 )
 
-            current_session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id,
-                SessionTable.is_login == True
-            ).order_by(SessionTable.login_at.desc()).first()
 
-            kyc = self.db.query(KYCTable).filter(
+            # Step 3: Fetch related data
+            settings: SettingsTable = user.settings
+            kyc: KYCTable = self.db.query(KYCTable).filter(
                 KYCTable.user_id == user_id
             ).first()
+            services = self.get_user_services(self.db, user_id)
 
+
+            # Step 4: Return full user data response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -381,10 +390,7 @@ class UserServices:
                         "email_verified": user.email_verified,
                         "profile_picture": user.profile_image_url,
                         "created_at": user.created_at.isoformat() if user.created_at else None
-                    },
-                    "settings": self._serialize_settings(user.settings),
-                    "session": self._serialize_session(current_session),
-                    "kyc": self._serialize_kyc(kyc)
+                    }
                 }
             )
 

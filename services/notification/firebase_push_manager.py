@@ -30,15 +30,15 @@ class FirebasePushManager:
             return bool(response)
 
         except UnregisteredError:
-            print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}     FCM token {fcm_token} is unregistered.")
+            print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}    FCM token {fcm_token} is unregistered.")
             return False
 
         except FirebaseError as e:
-            print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}     Firebase error: {e}")
+            print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}    Firebase error: {e}")
             return False
 
         except Exception as e:
-            print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}     Unexpected error: {e}")
+            print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}    Unexpected error: {e}")
             return False
     
     def add_history(self, fcm_token: str, title: str, body: str, payload: dict = None) -> None:

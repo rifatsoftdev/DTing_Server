@@ -144,7 +144,7 @@ class CancelDeleteAccountRequest(BaseModel):
 # Change Password
 class ChangePasswordRequest(BaseModel):
     user_id: str
-    access_token: Optional[str] = None
+    access_token: str
     device_id: str
     device_uuid: str
     user_password: str

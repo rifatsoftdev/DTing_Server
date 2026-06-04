@@ -1,19 +1,16 @@
 from enum import Enum
 from typing import Callable
 from fastapi import BackgroundTasks, Request
-from matplotlib.pyplot import title
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.model import SessionTable
-from app.templates.email_template import EmailTemplate
-from app.templates.push_template import PushTemplate
-from app.templates.sms_template import SMSTemplate
+from app.templates import EmailTemplate, PushTemplate, SMSTemplate
 
 from services.notification.email_manager import EmailManager
 from services.notification.firebase_push_manager import FirebasePushManager
 from services.notification.sms_manager import SMSManager
-from services.notification.websocket_push_manager import NotifyWebSocket, WebsocketPushManager
+from services.notification.websocket_push_manager import NotifyWebSocket
 
 
 class NotificationEvent(Enum):
@@ -25,8 +22,23 @@ class NotificationEvent(Enum):
     GENERAL_NOTIFICATION = "general_notification"
     LINK_GOOGLE = "link_google"
     PASSWORD_CHANGE = "password_change"
-    
-    
+    EMAIL_CHANGE = "email_change"
+    TWO_FACTOR_ENABLE = "two_factor_enable"
+    TWO_FACTOR_DISABLE = "two_factor_disable"
+    ACCOUNT_LOCKED = "account_locked"
+    ACCOUNT_UNLOCKED = "account_unlocked"
+    EMAIL_VERIFICATION = "email_verification"
+    PASSWORD_RESET_SUCCESS = "password_reset_success"
+    RECOVERY_CODE_GENERATED = "recovery_code_generated"
+    ACCOUNT_DELETED = "account_deleted"
+    ACCOUNT_DEACTIVATED = "account_deactivated"
+    ACCOUNT_REACTIVATED = "account_reactivated"
+    SUBSCRIPTION_EXPIRY = "subscription_expiry"
+    MAINTENANCE_NOTICE = "maintenance_notice"
+    TERMS_UPDATE = "terms_update"
+    ADMIN_ALERT = "admin_alert"
+    API_KEY_CREATED = "api_key_created"
+    API_KEY_REVOKED = "api_key_revoked"
 
 
 class NotificationData(BaseModel):
@@ -90,6 +102,91 @@ NOTIFICATION_TEMPLATE_REGISTRY: dict[NotificationEvent, dict[str, Callable]] = {
         "sms": SMSTemplate.password_changed_template,
         "push": PushTemplate.password_changed_template,
     },
+    NotificationEvent.EMAIL_CHANGE: {
+        "email": EmailTemplate.email_changed_template,
+        "sms": SMSTemplate.email_changed_template,
+        "push": PushTemplate.email_changed_template,
+    },
+    NotificationEvent.TWO_FACTOR_ENABLE: {
+        "email": EmailTemplate.two_factor_enabled_template,
+        "sms": SMSTemplate.two_factor_enabled_template,
+        "push": PushTemplate.two_factor_enabled_template,
+    },
+    NotificationEvent.TWO_FACTOR_DISABLE: {
+        "email": EmailTemplate.two_factor_disabled_template,
+        "sms": SMSTemplate.two_factor_disabled_template,
+        "push": PushTemplate.two_factor_disabled_template,
+    },
+    NotificationEvent.ACCOUNT_LOCKED: {
+        "email": EmailTemplate.account_locked_template,
+        "sms": SMSTemplate.account_locked_template,
+        "push": PushTemplate.account_locked_template,
+    },
+    NotificationEvent.ACCOUNT_UNLOCKED: {
+        "email": EmailTemplate.account_unlocked_template,
+        "sms": SMSTemplate.account_unlocked_template,
+        "push": PushTemplate.account_unlocked_template,
+    },
+    NotificationEvent.EMAIL_VERIFICATION: {
+        "email": EmailTemplate.email_verification_template,
+        "sms": SMSTemplate.email_verification_template,
+        "push": PushTemplate.email_verification_template,
+    },
+    NotificationEvent.PASSWORD_RESET_SUCCESS: {
+        "email": EmailTemplate.password_reset_success_template,
+        "sms": SMSTemplate.password_reset_success_template,
+        "push": PushTemplate.password_reset_success_template,
+    },
+    NotificationEvent.RECOVERY_CODE_GENERATED: {
+        "email": EmailTemplate.recovery_code_template,
+        "sms": SMSTemplate.recovery_code_template,
+        "push": PushTemplate.recovery_code_template,
+    },
+    NotificationEvent.ACCOUNT_DELETED: {
+        "email": EmailTemplate.account_deleted_template,
+        "sms": SMSTemplate.account_deleted_template,
+        "push": PushTemplate.account_deleted_template,
+    },
+    NotificationEvent.ACCOUNT_DEACTIVATED: {
+        "email": EmailTemplate.account_deactivated_template,
+        "sms": SMSTemplate.account_deactivated_template,
+        "push": PushTemplate.account_deactivated_template,
+    },
+    NotificationEvent.ACCOUNT_REACTIVATED: {
+        "email": EmailTemplate.account_reactivated_template,
+        "sms": SMSTemplate.account_reactivated_template,
+        "push": PushTemplate.account_reactivated_template,
+    },
+    NotificationEvent.SUBSCRIPTION_EXPIRY: {
+        "email": EmailTemplate.subscription_expiry_template,
+        "sms": SMSTemplate.subscription_expiry_template,
+        "push": PushTemplate.subscription_expiry_template,
+    },
+    NotificationEvent.MAINTENANCE_NOTICE: {
+        "email": EmailTemplate.maintenance_notification_template,
+        "sms": SMSTemplate.maintenance_notification_template,
+        "push": PushTemplate.maintenance_notification_template,
+    },
+    NotificationEvent.TERMS_UPDATE: {
+        "email": EmailTemplate.terms_update_template,
+        "sms": SMSTemplate.terms_update_template,
+        "push": PushTemplate.terms_update_template,
+    },
+    NotificationEvent.ADMIN_ALERT: {
+        "email": EmailTemplate.admin_alert_template,
+        "sms": SMSTemplate.admin_alert_template,
+        "push": PushTemplate.admin_alert_template,
+    },
+    NotificationEvent.API_KEY_CREATED: {
+        "email": EmailTemplate.api_key_created_template,
+        "sms": SMSTemplate.api_key_created_template,
+        "push": PushTemplate.api_key_created_template,
+    },
+    NotificationEvent.API_KEY_REVOKED: {
+        "email": EmailTemplate.api_key_revoked_template,
+        "sms": SMSTemplate.api_key_revoked_template,
+        "push": PushTemplate.api_key_revoked_template,
+    },
 }
 
 
@@ -113,7 +210,42 @@ NOTIFICATION_EVENT_ALIASES: dict[str, NotificationEvent] = {
     "auth.password_change": NotificationEvent.PASSWORD_CHANGE,
     "auth.password.changed": NotificationEvent.PASSWORD_CHANGE,
     "auth.password.reset.success": NotificationEvent.PASSWORD_CHANGE,
-
+    "email_change": NotificationEvent.EMAIL_CHANGE,
+    "auth.email_change": NotificationEvent.EMAIL_CHANGE,
+    "auth.email.changed": NotificationEvent.EMAIL_CHANGE,
+    "two_factor_enable": NotificationEvent.TWO_FACTOR_ENABLE,
+    "auth.two_factor_enable": NotificationEvent.TWO_FACTOR_ENABLE,
+    "auth.2fa.enabled": NotificationEvent.TWO_FACTOR_ENABLE,
+    "two_factor_disable": NotificationEvent.TWO_FACTOR_DISABLE,
+    "auth.two_factor_disable": NotificationEvent.TWO_FACTOR_DISABLE,
+    "auth.2fa.disabled": NotificationEvent.TWO_FACTOR_DISABLE,
+    "account_locked": NotificationEvent.ACCOUNT_LOCKED,
+    "auth.account_locked": NotificationEvent.ACCOUNT_LOCKED,
+    "auth.account.locked": NotificationEvent.ACCOUNT_LOCKED,
+    "account_unlocked": NotificationEvent.ACCOUNT_UNLOCKED,
+    "auth.account_unlocked": NotificationEvent.ACCOUNT_UNLOCKED,
+    "auth.account.unlocked": NotificationEvent.ACCOUNT_UNLOCKED,
+    "email_verification": NotificationEvent.EMAIL_VERIFICATION,
+    "auth.email_verification": NotificationEvent.EMAIL_VERIFICATION,
+    "auth.email.verify": NotificationEvent.EMAIL_VERIFICATION,
+    "password_reset_success": NotificationEvent.PASSWORD_RESET_SUCCESS,
+    "auth.password_reset_success": NotificationEvent.PASSWORD_RESET_SUCCESS,
+    "auth.password.reset.complete": NotificationEvent.PASSWORD_RESET_SUCCESS,
+    "recovery_code_generated": NotificationEvent.RECOVERY_CODE_GENERATED,
+    "auth.recovery_codes.generated": NotificationEvent.RECOVERY_CODE_GENERATED,
+    "account_deleted": NotificationEvent.ACCOUNT_DELETED,
+    "auth.account.deleted": NotificationEvent.ACCOUNT_DELETED,
+    "account_deactivated": NotificationEvent.ACCOUNT_DEACTIVATED,
+    "auth.account.deactivated": NotificationEvent.ACCOUNT_DEACTIVATED,
+    "account_reactivated": NotificationEvent.ACCOUNT_REACTIVATED,
+    "auth.account.reactivated": NotificationEvent.ACCOUNT_REACTIVATED,
+    "subscription_expiry": NotificationEvent.SUBSCRIPTION_EXPIRY,
+    "maintenance_notice": NotificationEvent.MAINTENANCE_NOTICE,
+    "terms_update": NotificationEvent.TERMS_UPDATE,
+    "admin_alert": NotificationEvent.ADMIN_ALERT,
+    "api_key_created": NotificationEvent.API_KEY_CREATED,
+    "api_key_revoked": NotificationEvent.API_KEY_REVOKED,
+    
     "admin.custom": NotificationEvent.GENERAL_NOTIFICATION,
 }
 

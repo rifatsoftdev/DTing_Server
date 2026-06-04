@@ -1,9 +1,6 @@
-import smtplib
-
 from fastapi import HTTPException, Request, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from datetime import timedelta
-from email.mime.text import MIMEText
 
 from app.constants import ENV, AnsiColor, String
 from app.enums import NotificationType, OTPMethod, OTPPurpose, TwoFactorType
@@ -12,6 +9,7 @@ from app.schema import OTPRequest, GlobalResponse, VerifyOTPRequest, EmailVerifi
 from app.utils import Generators, Hashing, Helpers, TwoFactorAuth
 from services.auth.token_service import TokenGenerators
 from services.notification.notification_services import NotificationServices, NotificationData
+
 
 
 class OTPService(TokenGenerators):
@@ -66,7 +64,7 @@ class OTPService(TokenGenerators):
 
         return token_payload
 
-    def create_email_verification_token(
+    def _create_email_verification_token(
         self,
         user: UserTable,
         device_id: str = None,
@@ -648,7 +646,6 @@ class OTPService(TokenGenerators):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
 
 
 
