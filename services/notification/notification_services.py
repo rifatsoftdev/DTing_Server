@@ -4,6 +4,7 @@ from fastapi import BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
+from app.constants import AnsiColor, String
 from app.model import SessionTable
 from app.templates import EmailTemplate, PushTemplate, SMSTemplate
 
@@ -312,13 +313,13 @@ class NotificationServices:
         if event:
             template_func = NOTIFICATION_TEMPLATE_REGISTRY.get(event, {}).get(channel)
             if template_func is None:
-                print(f"Notification template not found for event={event.value}, channel={channel}")
+                print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}    Notification template not found for event={event.value}, channel={channel}")
                 return None
 
             try:
                 return template_func(**self._get_template_data(data))
             except TypeError as e:
-                print(f"Notification template data mismatch for event={event.value}, channel={channel}: {e}")
+                print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}    Notification template data mismatch for event={event.value}, channel={channel}: {e}")
                 return None
 
         if data.title and data.body:
@@ -327,7 +328,7 @@ class NotificationServices:
                 "body": data.body
             }
 
-        print("Notification title/body or valid event is required")
+        print(f"{AnsiColor.RED}ERROR:{AnsiColor.RESET}    Notification title/body or valid event is required")
         return None
 
     def _get_fcm_token(self, data: NotificationData) -> str | None:
@@ -383,7 +384,7 @@ class NotificationServices:
 
         fcm_token = self._get_fcm_token(data)
         if not fcm_token:
-            print("Push notification skipped: user is offline and fcm_token was not found")
+            print(f"{AnsiColor.BLUE}INFO:{AnsiColor.RESET}     Push notification skipped: user is offline and fcm_token was not found")
             return False
 
         return FirebasePushManager().send_push(
@@ -404,7 +405,7 @@ class NotificationServices:
 
         channels = self._get_channels(data)
         if not channels:
-            print("Notification skipped: no channel selected")
+            print(f"{AnsiColor.BLUE}INFO:{AnsiColor.RESET}     Notification skipped: no channel selected")
             return False
 
         queued = False
@@ -416,7 +417,7 @@ class NotificationServices:
 
             if channel == "email":
                 if not data.email_address:
-                    print("Email notification skipped: email_address is required")
+                    print(f"{AnsiColor.BLUE}INFO:{AnsiColor.RESET}     Email notification skipped: email_address is required")
                     continue
                 self.background_tasks.add_task(
                     self._send_email_notification,
@@ -427,7 +428,7 @@ class NotificationServices:
 
             elif channel == "sms":
                 if not data.phone_number:
-                    print("SMS notification skipped: phone_number is required")
+                    print(f"{AnsiColor.BLUE}INFO:{AnsiColor.RESET}     SMS notification skipped: phone_number is required")
                     continue
                 self.background_tasks.add_task(
                     self._send_sms_notification,
@@ -438,7 +439,7 @@ class NotificationServices:
 
             elif channel == "push":
                 if not data.user_id and not data.fcm_token:
-                    print("Push notification skipped: user_id or fcm_token is required")
+                    print(f"{AnsiColor.BLUE}INFO:{AnsiColor.RESET}     Push notification skipped: user_id or fcm_token is required")
                     continue
                 self.background_tasks.add_task(
                     self._send_push_notification,

@@ -406,7 +406,7 @@ class AccountServices(OTPService, SigninService):
                 body=notification_body
             )
             self.db.add(new_notification)
-            self.db.flush(new_notification)
+            self.db.flush()
 
             active_session = self.db.query(SessionTable).filter(
                 SessionTable.user_id == user.user_id,
@@ -548,7 +548,7 @@ class AccountServices(OTPService, SigninService):
                 body="Your delete account request was cancelled and your account has been reactivated."
             )
             self.db.add(reactivated_notification)
-            self.db.flush(reactivated_notification)
+            self.db.flush()
 
             notificationServices = NotificationServices(
                 db=self.db,

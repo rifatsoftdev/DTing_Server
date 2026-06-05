@@ -18,8 +18,6 @@ history_router = APIRouter()
 
 
 
-
-
 # ==============================================================================
 
 @history_router.get("/all-notifications")
@@ -50,6 +48,43 @@ async def all_notifications(
     )
     
     return historyServices.all_notifications(user_id)
+
+
+
+
+# ==============================================================================
+
+@history_router.post("/mark-notification-read/{notification_id}")
+async def mark_notification_read(
+    notification_id: int,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    access_token = Helpers.authorization(authorization)
+
+    # verify user
+    userVerificationService = UserVerificationService(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    user_id: str = userVerificationService.verify_access_token(access_token=access_token)
+
+    historyServices = HistoryServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return historyServices.mark_notification_read(
+        user_id=user_id,
+        notification_id=notification_id
+    )
 
 
 

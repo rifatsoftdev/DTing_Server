@@ -212,7 +212,7 @@ class SigninService(TokenGenerators, UserRepository):
                     otp_verified=not is_2fa_required
                 )
                 self.db.add(session)
-                self.db.flush(session)
+                self.db.flush()
 
 
             # Step 7: Create notification record
@@ -223,7 +223,7 @@ class SigninService(TokenGenerators, UserRepository):
                 body=f"Your account was logged in from IP {ip} on {Helpers.utc6dhaka()}. If this wasn’t you, change your password immediately."
             )
             self.db.add(new_notification)
-            self.db.flush(new_notification)
+            self.db.flush()
 
 
             # Step 8: Send notification alerts

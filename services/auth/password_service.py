@@ -447,7 +447,7 @@ class PasswordService(TokenGenerators):
                 user_agent=user_agent
             )
             self.db.add(activity)
-            self.db.flush(activity)
+            self.db.flush()
 
 
             # Step 8: Finalize database changes

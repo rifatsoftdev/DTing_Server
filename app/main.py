@@ -14,9 +14,13 @@ from app.constants import ENV, AnsiColor
 from app.schema.global_schema import GlobalResponse
 from app.middleware.auth_middleware import AuthMiddleware
 
+from admin.router.access_router import admin_access_router
+from admin.router.auth_router import admin_auth_router
+
 from app.router.auth_router import auth_router
 from app.router.country_router import country_router
 from app.router.dev_router import dev_router
+from app.router.feedback_router import feedback_router
 from app.router.history_router import history_router
 from app.router.notify_router import notyfy_router
 from app.router.offer_router import offer_router
@@ -60,6 +64,7 @@ app.add_middleware(
         "/country",
         "/dev",
         "/donation",
+        "/feedback",
         "/history",
         "/offer",
         "/qr",
@@ -78,7 +83,7 @@ TMP_DIR = Path("uploads/tmp")
 
 # 
 @app.on_event("startup")
-def create_default_admin_on_startup():
+def startup_event():
     db = SessionLocal()
     try:
         setupServices = SetupServices(
@@ -94,6 +99,7 @@ def create_default_admin_on_startup():
 
 
 
+# 
 @app.on_event("shutdown")
 def shutdown_event():
     exit_code = 1
@@ -150,7 +156,6 @@ async def root(
 
 
 
-
 # ==============================================================================
 
 @app.get("/health")
@@ -172,8 +177,9 @@ async def root(
     )
 
 
-# ==============================================================================
 
+
+# ==============================================================================
 
 @app.get("/test")
 async def root(
@@ -231,6 +237,7 @@ async def root(
 
 
 
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return FileResponse("static/favicon.ico")
@@ -239,12 +246,13 @@ async def favicon():
 
 
 # Include routers
-# app.include_router(admin_access_router, prefix="/admin", tags=["Admin Management"])
-# app.include_router(admin_auth_router, prefix="/admin", tags=["Admin Management"])
+app.include_router(admin_access_router, prefix="/admin", tags=["Admin Management"])
+app.include_router(admin_auth_router, prefix="/admin", tags=["Admin Management"])
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(country_router, prefix="/country", tags=["Countries"])
 app.include_router(dev_router, prefix="/dev", tags=["Development"])
+app.include_router(feedback_router, prefix="/feedback", tags=["Feedback"])
 app.include_router(history_router, prefix="/history", tags=["Transaction History"])
 app.include_router(notyfy_router, prefix="/ws", tags=["Notifications"])
 app.include_router(offer_router, prefix="/offer", tags=["Offers"])

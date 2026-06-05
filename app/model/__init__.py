@@ -4,6 +4,7 @@ from app.model.cloudinary_history_table import CloudinaryHistory
 from app.model.country_table import CountryTable
 from app.model.delete_user_table import DeletedUserTable
 from app.model.dev_table import DevTable
+from  app.model.feedbacks_table import FeedbackTable
 from app.model.notification_table import NotificationTable
 from app.model.offer_table import OfferTable
 from app.model.otp_table import OTPTable

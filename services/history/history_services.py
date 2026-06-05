@@ -6,7 +6,7 @@ from decimal import Decimal
 from app.constants import String, AnsiColor
 from app.enums import TransactionType, PaymentMethods, TransactionDirection, TransactionStatus, NotificationType
 from app.schema import PaymentRequest, GlobalResponse, GlobalRequest
-from app.model import DevTable, UserTable
+from app.model import DevTable, NotificationTable, UserTable
 from app.utils import Generators, Helpers
 
 from services.auth.user_verification import UserVerificationService
@@ -41,7 +41,7 @@ class HistoryServices:
                     "title": tx.title,
                     "body": tx.body,
                     "img_url": tx.img_url,
-                    "created_at": tx.created_at.isoformat() if tx.created_at else None,
+                    "created_at": tx.created_at.strftime("%Y:%m:%d %I:%M:%S %p") if tx.created_at else None,
                     "is_read": tx.is_read
                 })
 
@@ -63,7 +63,47 @@ class HistoryServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+    def mark_notification_read(self, user_id: str, notification_id: int) -> GlobalResponse:
+        try:
+            notification: NotificationTable = self.db.query(NotificationTable).filter(
+                NotificationTable.id == notification_id,
+                NotificationTable.target_id == user_id
+            ).first()
 
+            if not notification:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Notification not found"
+                )
+
+            notification.is_read = True
+            notification.read_at = Helpers.utc6dhaka()
+
+            self.db.commit()
+            self.db.refresh(notification)
+
+            return GlobalResponse(
+                status_code=status.HTTP_200_OK,
+                success=True,
+                action="mark_notification_read",
+                message="Notification marked as read successfully",
+                data={
+                    "notification_id": notification.id,
+                    "is_read": notification.is_read,
+                    "read_at": notification.read_at.strftime("%Y:%m:%d %I:%M:%S %p") if notification.read_at else None
+                },
+                next_step={}
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+    
 
 
 

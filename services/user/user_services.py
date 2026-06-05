@@ -33,6 +33,19 @@ class UserServices:
         self.request = request
         self.authorization = authorization
     
+    def _serialize_activity(self, activity: UserActivityTable | None) -> dict:
+        if not activity:
+            return None
+
+        return {
+            "id": activity.id,
+            "activity_type": self._enum_value(activity.activity_type),
+            "detail": activity.detail,
+            "ip_address": activity.ip_address,
+            "user_agent": activity.user_agent,
+            "created_at": activity.created_at.isoformat() if activity.created_at else None
+        }
+
     @staticmethod
     def _format_date_of_birth(value):
         if value is None:
@@ -82,6 +95,25 @@ class UserServices:
             "last_seen_at": session.last_seen_at.isoformat() if session.last_seen_at else None,
             "login_at": session.login_at.isoformat() if session.login_at else None,
             "logout_at": session.logout_at.isoformat() if session.logout_at else None
+        }
+
+    @staticmethod
+    def _serialize_kyc(kyc: KYCTable | None) -> dict:
+        if not kyc:
+            return {
+                "status": "not_submitted",
+                "document_type": None,
+                "rejection_reason": None,
+                "submitted_at": None,
+                "updated_at": None
+            }
+
+        return {
+            "status": kyc.kyc_status.value if hasattr(kyc.kyc_status, "value") else kyc.kyc_status,
+            "document_type": kyc.document_type,
+            "rejection_reason": kyc.rejection_reason,
+            "submitted_at": kyc.created_at.isoformat() if kyc.created_at else None,
+            "updated_at": kyc.updated_at.isoformat() if kyc.updated_at else None
         }
 
     @classmethod
@@ -401,101 +433,6 @@ class UserServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-    def update_settings(self, payload: Dict[str, Any]) -> GlobalResponse:
-        try:
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
-
-            settings = self.db.query(SettingsTable).filter(
-                SettingsTable.user_id == user_id
-            ).first()
-
-            if not settings:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.SETTINGS_NOT_FOUND
-                )
-
-            blocked_fields = {
-                "user_id",
-                "account_deactivated",
-                "deactivated_at",
-                "last_password_changed_at",
-                "biometric_enabled_at",
-                "biometric_secret",
-                "created_at",
-                "updated_at"
-            }
-            allowed_fields = {
-                column.name
-                for column in SettingsTable.__table__.columns
-                if column.name not in blocked_fields
-            }
-
-            update_data = {
-                key: self._normalize_setting_value(value)
-                for key, value in payload.items()
-                if key in allowed_fields
-            }
-
-            invalid_fields = sorted(set(payload.keys()) - allowed_fields - blocked_fields)
-            if invalid_fields:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid settings field(s): {', '.join(invalid_fields)}"
-                )
-
-            if not update_data:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="No settings data provided"
-                )
-
-            for field, value in update_data.items():
-                setattr(settings, field, value)
-
-            # Log activity
-            ip_address = self.request.client.host if self.request else None
-            user_agent = self.request.headers.get("user-agent") if self.request else None
-            
-            activity = UserActivityTable(
-                user_id=user_id,
-                activity_type=UserActivityType.SETTINGS_CHANGE,
-                detail={
-                    "action": "settings_updated",
-                    "changed_fields": list(update_data.keys()),
-                    "timestamp": str(datetime.now())
-                },
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            self.db.add(activity)
-
-            self.db.commit()
-            self.db.refresh(settings)
-
-            return GlobalResponse(
-                status_code=status.HTTP_200_OK,
-                success=True,
-                action="settings_updated",
-                message="Settings updated successfully",
-                data={"settings": self._serialize_settings(settings)},
-                next_step={}
-            )
-
-        except HTTPException:
-            self.db.rollback()
-            raise
-
-        except Exception as e:
-            self.db.rollback()
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
     # a function to get user session information
     def get_sessions(
@@ -563,19 +500,8 @@ class UserServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-    def _serialize_activity(self, activity: UserActivityTable | None) -> dict:
-        if not activity:
-            return None
 
-        return {
-            "id": activity.id,
-            "activity_type": self._enum_value(activity.activity_type),
-            "detail": activity.detail,
-            "ip_address": activity.ip_address,
-            "user_agent": activity.user_agent,
-            "created_at": activity.created_at.isoformat() if activity.created_at else None
-        }
-
+    # get user activities
     def get_activities(
         self,
         start: int = 0,
@@ -640,6 +566,279 @@ class UserServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    def get_kyc_status(self) -> GlobalResponse:
+        try:
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
+
+            kyc = self.db.query(KYCTable).filter(
+                KYCTable.user_id == user_id
+            ).first()
+
+            return GlobalResponse(
+                status_code=status.HTTP_200_OK,
+                success=True,
+                action="kyc_status_fetched",
+                message="KYC status fetched successfully",
+                data={"kyc": self._serialize_kyc(kyc)},
+                next_step={}
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+    # a function to get security center
+    def get_security_center(self) -> GlobalResponse:
+        try:
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
+
+            user = self.db.query(UserTable).filter(
+                UserTable.user_id == user_id
+            ).first()
+
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.USER_NOT_FOUND
+                )
+
+            settings: SettingsTable = user.settings
+
+            if not settings:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.SETTINGS_NOT_FOUND
+                )
+
+            enabled_tfa = self.db.query(TwoFactorTable).filter(
+                TwoFactorTable.user_id == user_id,
+                TwoFactorTable.is_enabled == True
+            ).all()
+            enabled_tfa_methods = [
+                {
+                    "method": method.method_type.value,
+                    "delivery_address": method.delivery_address,
+                    "is_primary": method.is_primary,
+                    "enabled_at": method.created_at.isoformat() if method.created_at else None
+                }
+                for method in enabled_tfa
+            ]
+
+            # determine available TFA methods and totals
+            from app.enums import TwoFactorType
+            all_methods = [TwoFactorType.TOTP, TwoFactorType.EMAIL, TwoFactorType.SMS]
+            enabled_method_types = {method.method_type for method in enabled_tfa}
+            available_methods = [m.value for m in all_methods if m not in enabled_method_types]
+            total_enabled = len(enabled_tfa_methods)
+
+            last_login_session = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user_id,
+                SessionTable.is_login == True
+            ).order_by(SessionTable.login_at.desc()).first()
+
+            active_sessions = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user_id,
+                SessionTable.is_login == True
+            ).count()
+
+            return GlobalResponse(
+                status_code=status.HTTP_200_OK,
+                success=True,
+                action="security_center_fetched",
+                message="Security center data fetched successfully",
+                data={
+                    "security": {
+                        "last_password_changed_at": settings.last_password_changed_at.isoformat() if settings.last_password_changed_at else None,
+                        "password_change_alerts": settings.password_change_alerts,
+                        "login_alerts": settings.login_alerts,
+                        "new_device_alerts": settings.new_device_alerts,
+                        "biometric_enabled": settings.biometric_enabled,
+                        "biometric_enabled_at": settings.biometric_enabled_at.isoformat() if settings.biometric_enabled_at else None,
+                        "account_deactivated": settings.account_deactivated,
+                        "deactivated_at": settings.deactivated_at.isoformat() if settings.deactivated_at else None,
+                        "email_verified": user.email_verified,
+                        "phone_verified": user.phone_verified,
+                        "google_linked": bool(user.link_google),
+                        "enabled_tfa_methods": enabled_tfa_methods,
+                        "enabled_methods": enabled_tfa_methods,
+                        "available_methods": available_methods,
+                        "total_enabled": total_enabled,
+                        "active_sessions": active_sessions,
+                        "last_login_at": last_login_session.login_at.isoformat() if last_login_session else None
+                    }
+                },
+                next_step={}
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+    # a function to submit kyc information
+    def kyc_submit(
+        self,
+        document_type: str,
+        user_id: str,
+        access_token: str,
+        device_id: str,
+        device_uuid: str,
+        front_image: UploadFile,
+        back_image: UploadFile,
+        user_face_image: UploadFile
+    ):
+        try:
+            # verify user
+            user_verification_service = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            user = user_verification_service.verify_user(
+                user_id=user_id,
+                access_token=access_token,
+                device_id=device_id,
+                device_uuid=device_uuid,
+                password=None,
+                advance_check=False
+            )
+
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+
+            old_kyc = self.db.query(KYCTable).filter(
+                KYCTable.user_id == user.user_id
+            ).first()
+
+            old_status = self._enum_value(old_kyc.kyc_status) if old_kyc else None
+            if old_status == KYCStatus.VERIFIED.value:
+                raise HTTPException(
+                    status_code=400,
+                    detail="KYC already verified. If you want to update your KYC, please contact support."
+                )
+
+            elif old_status == KYCStatus.PENDING.value:
+                raise HTTPException(
+                    status_code=400,
+                    detail="KYC already pending. We are reviewing your documents and will update your KYC status accordingly."
+                )
+
+            cloudinaryStorage = CloudinaryStorage(db=self.db)
+            url_results = []
+
+            for file in [front_image, back_image, user_face_image]:
+                if file.content_type and not file.content_type.startswith("image/"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Only image files allowed"
+                    )
+
+                file.file.seek(0, 2)
+                size = file.file.tell()
+                file.file.seek(0)
+
+                if size > MAX_SIZE:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Image size must be under 5MB"
+                    )
+
+                image_url = cloudinaryStorage.upload_file(
+                    file_path=file.file,
+                    public_id=f"{user.user_id}/kyc/{file.filename}",
+                    file_type="image"
+                )
+                if not image_url:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Cloudinary upload failed: no upload response received"
+                    )
+
+                image_url_value = image_url.get("secure_url") or image_url.get("url")
+                if not image_url_value:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Cloudinary upload failed: image URL missing"
+                    )
+
+                url_results.append(image_url_value)
+            
+            if old_status == KYCStatus.REJECTED.value:
+                # update kyc info
+                old_kyc.document_type = document_type
+                old_kyc.front_image_url = url_results[0]
+                old_kyc.back_image_url = url_results[1]
+                old_kyc.user_face_image_url = url_results[2]
+                old_kyc.kyc_status = KYCStatus.PENDING.value
+                old_kyc.updated_at = datetime.utcnow()
+
+                self.db.commit()
+                self.db.refresh(old_kyc)
+
+                return GlobalResponse(
+                    status_code=status.HTTP_200_OK,
+                    message="KYC documents resubmitted successfully. Your KYC status is now pending. We will review your documents and update your KYC status accordingly.",
+                    data={
+                        "kyc_status": "pending"
+                    },
+                    next_step={}
+                )
+
+            # update user kyc info
+            user_kyc = KYCTable(
+                user_id=user.user_id,
+                document_type=document_type,
+                front_image_url=url_results[0],
+                back_image_url=url_results[1],
+                user_face_image_url=url_results[2]
+            )
+
+            self.db.add(user_kyc)
+            self.db.commit()
+            self.db.refresh(user_kyc)
+
+            return GlobalResponse(
+                status_code=status.HTTP_200_OK,
+                message="KYC documents submitted successfully. Your KYC status is now pending. We will review your documents and update your KYC status accordingly.",
+                action="kyc_submitted",
+                data={
+                    "kyc_status": "pending"
+                },
+                next_step={}
+            )
+            
+        except HTTPException:
+            raise
+            
+        except Exception as e:
+            print(f"{AnsiColor.RED}ERROR{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+    # 
     def update_profile(
         self,
         user_id: str,
@@ -832,26 +1031,9 @@ class UserServices:
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-    @staticmethod
-    def _serialize_kyc(kyc: KYCTable | None) -> dict:
-        if not kyc:
-            return {
-                "status": "not_submitted",
-                "document_type": None,
-                "rejection_reason": None,
-                "submitted_at": None,
-                "updated_at": None
-            }
 
-        return {
-            "status": kyc.kyc_status.value if hasattr(kyc.kyc_status, "value") else kyc.kyc_status,
-            "document_type": kyc.document_type,
-            "rejection_reason": kyc.rejection_reason,
-            "submitted_at": kyc.created_at.isoformat() if kyc.created_at else None,
-            "updated_at": kyc.updated_at.isoformat() if kyc.updated_at else None
-        }
-
-    def get_kyc_status(self) -> GlobalResponse:
+    # 
+    def update_settings(self, payload: Dict[str, Any]) -> GlobalResponse:
         try:
             userVerificationService = UserVerificationService(
                 db=self.db,
@@ -861,190 +1043,9 @@ class UserServices:
             )
             user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
 
-            kyc = self.db.query(KYCTable).filter(
-                KYCTable.user_id == user_id
+            settings = self.db.query(SettingsTable).filter(
+                SettingsTable.user_id == user_id
             ).first()
-
-            return GlobalResponse(
-                status_code=status.HTTP_200_OK,
-                success=True,
-                action="kyc_status_fetched",
-                message="KYC status fetched successfully",
-                data={"kyc": self._serialize_kyc(kyc)},
-                next_step={}
-            )
-
-        except HTTPException:
-            raise
-
-        except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
-    # a function to submit kyc information
-    def kyc_submit(
-        self,
-        document_type: str,
-        user_id: str,
-        access_token: str,
-        device_id: str,
-        device_uuid: str,
-        front_image: UploadFile,
-        back_image: UploadFile,
-        user_face_image: UploadFile
-    ):
-        try:
-            # verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            user = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                device_id=device_id,
-                device_uuid=device_uuid,
-                password=None,
-                advance_check=False
-            )
-
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found"
-                )
-
-            old_kyc = self.db.query(KYCTable).filter(
-                KYCTable.user_id == user.user_id
-            ).first()
-
-            old_status = self._enum_value(old_kyc.kyc_status) if old_kyc else None
-            if old_status == KYCStatus.VERIFIED.value:
-                raise HTTPException(
-                    status_code=400,
-                    detail="KYC already verified. If you want to update your KYC, please contact support."
-                )
-
-            elif old_status == KYCStatus.PENDING.value:
-                raise HTTPException(
-                    status_code=400,
-                    detail="KYC already pending. We are reviewing your documents and will update your KYC status accordingly."
-                )
-
-            cloudinaryStorage = CloudinaryStorage(db=self.db)
-            url_results = []
-
-            for file in [front_image, back_image, user_face_image]:
-                if file.content_type and not file.content_type.startswith("image/"):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Only image files allowed"
-                    )
-
-                file.file.seek(0, 2)
-                size = file.file.tell()
-                file.file.seek(0)
-
-                if size > MAX_SIZE:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Image size must be under 5MB"
-                    )
-
-                image_url = cloudinaryStorage.upload_file(
-                    file_path=file.file,
-                    public_id=f"{user.user_id}/kyc/{file.filename}",
-                    file_type="image"
-                )
-                if not image_url:
-                    raise HTTPException(
-                        status_code=502,
-                        detail="Cloudinary upload failed: no upload response received"
-                    )
-
-                image_url_value = image_url.get("secure_url") or image_url.get("url")
-                if not image_url_value:
-                    raise HTTPException(
-                        status_code=502,
-                        detail="Cloudinary upload failed: image URL missing"
-                    )
-
-                url_results.append(image_url_value)
-            
-            if old_status == KYCStatus.REJECTED.value:
-                # update kyc info
-                old_kyc.document_type = document_type
-                old_kyc.front_image_url = url_results[0]
-                old_kyc.back_image_url = url_results[1]
-                old_kyc.user_face_image_url = url_results[2]
-                old_kyc.kyc_status = KYCStatus.PENDING.value
-                old_kyc.updated_at = datetime.utcnow()
-
-                self.db.commit()
-                self.db.refresh(old_kyc)
-
-                return GlobalResponse(
-                    status_code=status.HTTP_200_OK,
-                    message="KYC documents resubmitted successfully. Your KYC status is now pending. We will review your documents and update your KYC status accordingly.",
-                    data={
-                        "kyc_status": "pending"
-                    },
-                    next_step={}
-                )
-
-            # update user kyc info
-            user_kyc = KYCTable(
-                user_id=user.user_id,
-                document_type=document_type,
-                front_image_url=url_results[0],
-                back_image_url=url_results[1],
-                user_face_image_url=url_results[2]
-            )
-
-            self.db.add(user_kyc)
-            self.db.commit()
-            self.db.refresh(user_kyc)
-
-            return GlobalResponse(
-                status_code=status.HTTP_200_OK,
-                message="KYC documents submitted successfully. Your KYC status is now pending. We will review your documents and update your KYC status accordingly.",
-                action="kyc_submitted",
-                data={
-                    "kyc_status": "pending"
-                },
-                next_step={}
-            )
-            
-        except HTTPException:
-            raise
-            
-        except Exception as e:
-            print(f"{AnsiColor.RED}ERROR{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
-    def get_security_center(self) -> GlobalResponse:
-        try:
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
-
-            user = self.db.query(UserTable).filter(
-                UserTable.user_id == user_id
-            ).first()
-
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.USER_NOT_FOUND
-                )
-
-            settings: SettingsTable = user.settings
 
             if not settings:
                 raise HTTPException(
@@ -1052,73 +1053,83 @@ class UserServices:
                     detail=String.SETTINGS_NOT_FOUND
                 )
 
-            enabled_tfa = self.db.query(TwoFactorTable).filter(
-                TwoFactorTable.user_id == user_id,
-                TwoFactorTable.is_enabled == True
-            ).all()
-            enabled_tfa_methods = [
-                {
-                    "method": method.method_type.value,
-                    "delivery_address": method.delivery_address,
-                    "is_primary": method.is_primary,
-                    "enabled_at": method.created_at.isoformat() if method.created_at else None
-                }
-                for method in enabled_tfa
-            ]
+            blocked_fields = {
+                "user_id",
+                "account_deactivated",
+                "deactivated_at",
+                "last_password_changed_at",
+                "biometric_enabled_at",
+                "biometric_secret",
+                "created_at",
+                "updated_at"
+            }
+            allowed_fields = {
+                column.name
+                for column in SettingsTable.__table__.columns
+                if column.name not in blocked_fields
+            }
 
-            # determine available TFA methods and totals
-            from app.enums import TwoFactorType
-            all_methods = [TwoFactorType.TOTP, TwoFactorType.EMAIL, TwoFactorType.SMS]
-            enabled_method_types = {method.method_type for method in enabled_tfa}
-            available_methods = [m.value for m in all_methods if m not in enabled_method_types]
-            total_enabled = len(enabled_tfa_methods)
+            update_data = {
+                key: self._normalize_setting_value(value)
+                for key, value in payload.items()
+                if key in allowed_fields
+            }
 
-            last_login_session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id,
-                SessionTable.is_login == True
-            ).order_by(SessionTable.login_at.desc()).first()
+            invalid_fields = sorted(set(payload.keys()) - allowed_fields - blocked_fields)
+            if invalid_fields:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid settings field(s): {', '.join(invalid_fields)}"
+                )
 
-            active_sessions = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id,
-                SessionTable.is_login == True
-            ).count()
+            if not update_data:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No settings data provided"
+                )
+
+            for field, value in update_data.items():
+                setattr(settings, field, value)
+
+            # Log activity
+            ip_address = self.request.client.host if self.request else None
+            user_agent = self.request.headers.get("user-agent") if self.request else None
+            
+            activity = UserActivityTable(
+                user_id=user_id,
+                activity_type=UserActivityType.SETTINGS_CHANGE,
+                detail={
+                    "action": "settings_updated",
+                    "changed_fields": list(update_data.keys()),
+                    "timestamp": str(datetime.now())
+                },
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            self.db.add(activity)
+
+            self.db.commit()
+            self.db.refresh(settings)
 
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
-                action="security_center_fetched",
-                message="Security center data fetched successfully",
-                data={
-                    "security": {
-                        "last_password_changed_at": settings.last_password_changed_at.isoformat() if settings.last_password_changed_at else None,
-                        "password_change_alerts": settings.password_change_alerts,
-                        "login_alerts": settings.login_alerts,
-                        "new_device_alerts": settings.new_device_alerts,
-                        "biometric_enabled": settings.biometric_enabled,
-                        "biometric_enabled_at": settings.biometric_enabled_at.isoformat() if settings.biometric_enabled_at else None,
-                        "account_deactivated": settings.account_deactivated,
-                        "deactivated_at": settings.deactivated_at.isoformat() if settings.deactivated_at else None,
-                        "email_verified": user.email_verified,
-                        "phone_verified": user.phone_verified,
-                        "google_linked": bool(user.link_google),
-                        "enabled_tfa_methods": enabled_tfa_methods,
-                        "enabled_methods": enabled_tfa_methods,
-                        "available_methods": available_methods,
-                        "total_enabled": total_enabled,
-                        "active_sessions": active_sessions,
-                        "last_login_at": last_login_session.login_at.isoformat() if last_login_session else None
-                    }
-                },
+                action="settings_updated",
+                message="Settings updated successfully",
+                data={"settings": self._serialize_settings(settings)},
                 next_step={}
             )
 
         except HTTPException:
+            self.db.rollback()
             raise
 
         except Exception as e:
+            self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
+    
+    
 
     # get_tfa_methods_status removed — functionality exposed via get_security_center
             

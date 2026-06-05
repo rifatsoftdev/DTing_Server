@@ -8,8 +8,8 @@ from app.schema import GlobalResponse, KYCUpdateRequest, AdminNotyfyResuest
 
 from admin.schema.admin_schema import *
 
-from app.services.admin.admin_services import AdminManagementServices
-from app.services.admin.access_services import AdminAccessServices
+from services.admin.admin_services import AdminManagementServices
+from services.admin.access_services import AdminAccessServices
 
 
 
@@ -376,6 +376,7 @@ async def reject_delete_account_request(
         request_id=request_id,
         payload=payload
     )
+
 
 
 

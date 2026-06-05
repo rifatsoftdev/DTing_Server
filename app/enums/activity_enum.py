@@ -13,3 +13,9 @@ class UserActivityType(str, PyEnum):
     LOGIN = "login"
     LOGOUT = "logout"
     OTHER = "other"
+
+
+class ReadStatus(str, PyEnum):
+    READ = "read"
+    UNREAD = "unread"
+    

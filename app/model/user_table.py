@@ -55,6 +55,13 @@ class UserTable(Base):
         cascade="all, delete-orphan"
     )
 
+    feedbacks = relationship(
+        "FeedbackTable",
+        foreign_keys="FeedbackTable.user_id",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
     # Notifications relationship for one-to-many mapping between user and notifications
     notifications = relationship(
         "NotificationTable",

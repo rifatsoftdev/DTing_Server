@@ -5,7 +5,7 @@ from typing import Optional
 from app.core.database import get_db
 from admin.schema.admin_schema import *
 from app.schema.global_schema import GlobalResponse
-from app.services.admin.admin_services import AdminManagementServices
+from services.admin.admin_services import AdminManagementServices
 
 
 

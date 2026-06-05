@@ -42,6 +42,10 @@ class Helpers:
     @staticmethod
     def minutes_to_timedelta(minutes: int):
         return timedelta(minutes=minutes)
+    
+    @staticmethod
+    def format_datetime(value):
+        return value.strftime("%Y:%m:%d %I:%M:%S %p") if value else None
 
 
 # if __name__ == "__main__":
