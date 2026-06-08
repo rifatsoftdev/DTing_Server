@@ -24,7 +24,7 @@ class UserVerificationService(TokenGenerators):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
-        super().__init__(self.db)
+        super().__init__()
 
     def verify_access_token(self, access_token: str, advanced: bool = False) -> str:
         # verify token

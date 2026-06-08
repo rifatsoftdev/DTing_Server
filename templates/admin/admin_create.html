@@ -1,0 +1,103 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'profile' %}
+
+{% block title %}Create Admin{% endblock %}
+{% block page_title %}Create Admin{% endblock %}
+
+{% block content %}
+<div class="profile-card">
+    <div class="card-header">
+        <h3><i class="fas fa-user-plus"></i> New Admin</h3>
+    </div>
+    <div class="card-body" style="padding: 20px 24px;">
+        <form id="createAdminForm">
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="newAdminFullName" required>
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="newAdminEmail" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="newAdminPassword" required minlength="8">
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <select id="newAdminRole">
+                    <option value="moderator">Moderator</option>
+                    <option value="viewer">Viewer</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Profile Image URL (optional)</label>
+                <input type="text" id="newAdminProfileImageUrl" placeholder="https://...">
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-user-plus"></i> Create Admin
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function ensureSuperAdmin() {
+        try {
+            const response = await fetch("/admin/profile-data", {
+                method: "GET",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include",
+            });
+
+            if (!response.ok) throw new Error("Failed to fetch admin profile");
+            const data = await response.json();
+            const admin = data.data || {};
+
+            if (!admin.is_super_admin) {
+                window.location.href = "/admin/dashboard";
+            }
+        } catch (err) {
+            console.error("Error fetching admin profile:", err);
+        }
+    }
+
+    async function createAdmin(event) {
+        event.preventDefault();
+        try {
+            const payload = {
+                full_name: document.getElementById("newAdminFullName").value.trim(),
+                email: document.getElementById("newAdminEmail").value.trim(),
+                password: document.getElementById("newAdminPassword").value,
+                role: document.getElementById("newAdminRole").value,
+                profile_image_url: document.getElementById("newAdminProfileImageUrl").value.trim() || null
+            };
+
+            const response = await fetch("/admin/create", {
+                method: "POST",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.detail || data.message || "Failed to create admin");
+            }
+
+            showToast("Admin created successfully", "success");
+            document.getElementById("createAdminForm").reset();
+        } catch (err) {
+            console.error("Error creating admin:", err);
+            showToast(err.message || "Failed to create admin", "error");
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        ensureSuperAdmin();
+        document.getElementById("createAdminForm").addEventListener("submit", createAdmin);
+    });
+</script>
+{% endblock %}

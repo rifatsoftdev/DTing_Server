@@ -29,7 +29,7 @@ class TFAServices(TokenGenerators):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
-        TokenGenerators.__init__(self, db)
+        TokenGenerators.__init__(self)
 
     def __verify_user(self, user_id: str, access_token: str, device_id: str, device_uuid: str, password: str = None):
         user_verification_service = UserVerificationService(

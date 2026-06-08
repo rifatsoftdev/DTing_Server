@@ -8,7 +8,7 @@ from app.schema import GlobalResponse, KYCUpdateRequest, AdminNotyfyResuest
 
 from admin.schema.admin_schema import *
 
-from services.admin.admin_services import AdminManagementServices
+from services.admin.admin_auth import AdminManagementServices
 from services.admin.access_services import AdminAccessServices
 
 
@@ -52,6 +52,7 @@ async def list_users(
 
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    
     search: Optional[str] = None,
     kyc_status: Optional[str] = None,
     is_active: Optional[bool] = None,

@@ -28,7 +28,7 @@ class GoogleOauth(TokenGenerators):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
-        super().__init__(self.db)
+        super().__init__(self)
 
     def google_login(self, payload: GoogleLoginRequest) -> GlobalResponse:
         try:

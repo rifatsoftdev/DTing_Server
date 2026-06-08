@@ -1,0 +1,47 @@
+{% macro admin_header(page_title, header_actions) %}
+<header class="main-header border-bottom bg-white py-2 sticky-top shadow-sm">
+    <div class="container-fluid d-flex align-items-center justify-content-between px-4">
+        <!-- Left Side: Toggle & Title -->
+        <div class="header-left d-flex align-items-center">
+            <button class="btn btn-link text-dark d-lg-none me-3 p-1 shadow-none mobile-menu-btn" onclick="toggleSidebar()">
+                <i class="fas fa-bars fa-lg"></i>
+            </button>
+            <h1 class="h4 mb-0 fw-bold text-dark page-title">{{ page_title }}</h1>
+        </div>
+
+        <!-- Right Side: Actions & Profile -->
+        <div class="header-right d-flex align-items-center gap-2">
+            <div class="header-actions d-none d-sm-flex align-items-center gap-2">
+                {{ header_actions }}
+            </div>
+
+            <div class="vr mx-2 d-none d-md-block opacity-25" style="height: 30px;"></div>
+
+            <div class="dropdown admin-dropdown">
+                <button class="btn btn-link d-flex align-items-center gap-2 text-decoration-none p-1 shadow-none admin-btn" 
+                        type="button" id="adminDropdownMenu" onclick="toggleAdminDropdown()">
+                    <div class="admin-avatar rounded-circle border p-1 bg-light shadow-sm" id="headerAdminAvatar" style="width: 40px; height: 42px;">
+                        <img src="https://res.cloudinary.com/dgh76k5vn/image/upload/v1741357531/new_user_profile_atwuhv.png" 
+                             alt="Admin" class="rounded-circle w-100 h-100 object-fit-cover">
+                    </div>
+                    <div class="d-none d-md-block text-start me-1">
+                        <span class="d-block small fw-bold text-dark lh-1" id="headerAdminName">Admin</span>
+                        <span class="text-muted lh-1" style="font-size: 0.65rem;">Administrator</span>
+                    </div>
+                    <i class="fas fa-chevron-down text-muted small"></i>
+                </button>
+                
+                <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-3 mt-2 py-2" id="adminDropdown" style="min-width: 200px;">
+                    <a class="dropdown-item py-2 px-4 d-flex align-items-center" href="/admin/profile">
+                        <i class="fas fa-user-circle me-3 text-primary opacity-75"></i> Profile
+                    </a>
+                    <div class="dropdown-divider mx-3"></div>
+                    <a class="dropdown-item py-2 px-4 d-flex align-items-center text-danger" href="#" onclick="logout()">
+                        <i class="fas fa-sign-out-alt me-3 opacity-75"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+{% endmacro %}

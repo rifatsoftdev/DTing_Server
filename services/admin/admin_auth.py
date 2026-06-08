@@ -37,7 +37,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             request=request,
             authorization=authorization
         )
-        TokenGenerators.__init__(self, db)
+        TokenGenerators.__init__(self)
     
     def admin_login(
         self,
@@ -81,8 +81,8 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
 
             # Current SQLite schema keeps one admin session row per admin_id.
             # Reuse it on repeated login instead of inserting a duplicate admin_id.
-            session = self.db.query(AdminSessionTable).filter(
-                AdminSessionTable.admin_id == admin.admin_id
+            session = self.db.query(SessionTable).filter(
+                SessionTable.user_id == admin.admin_id
             ).first()
             
             if session:
@@ -94,8 +94,8 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 session.login_at = now
                 session.logout_at = None
             else:
-                session = AdminSessionTable(
-                    admin_id=admin.admin_id,
+                session = SessionTable(
+                    user_id=admin.admin_id,
                     session_id=session_id,
                     device_uuid=device_uuid,
                     device_id=device_id,
@@ -199,8 +199,8 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             if access_token:
                 token_hash = Hashing.create_hash(access_token)
 
-                session = self.db.query(AdminSessionTable).filter(
-                    AdminSessionTable.access_token_hash == token_hash
+                session = self.db.query(SessionTable).filter(
+                    SessionTable.access_token_hash == token_hash
                 ).first()
 
                 if session:
@@ -245,6 +245,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 )
 
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
                 message="Profile retrieved successfully",
                 data={
@@ -303,9 +304,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 raise HTTPException(status_code=403, detail="Admin account is inactive")
 
             # Verify refresh token hash against session
-            session = self.db.query(AdminSessionTable).filter(
-                AdminSessionTable.admin_id == admin_id,
-                AdminSessionTable.is_login == True
+            session = self.db.query(SessionTable).filter(
+                SessionTable.user_id == admin_id,
+                SessionTable.is_login == True
             ).first()
 
             if not session:
@@ -459,7 +460,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             ip = self.request.client.host
             
             # Log the creation
-            new_notification = AdminSessionTable(
+            new_notification = SessionTable(
                 admin_id=admin_id,
                 session_id=f"created_by_{new_admin.admin_id}",
                 device_uuid=None,
@@ -615,9 +616,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             admin.updated_at = datetime.now(timezone.utc)
             
             # Invalidate all sessions for this admin
-            self.db.query(AdminSessionTable).filter(
-                AdminSessionTable.admin_id == payload.admin_id,
-                AdminSessionTable.is_login == True
+            self.db.query(SessionTable).filter(
+                SessionTable.user_id == payload.admin_id,
+                SessionTable.is_login == True
             ).update({
                 "is_login": False,
                 "logout_at": datetime.now(timezone.utc)
@@ -662,9 +663,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             admin.updated_at = datetime.now(timezone.utc)
             
             # Invalidate all sessions
-            self.db.query(AdminSessionTable).filter(
-                AdminSessionTable.admin_id == admin_id,
-                AdminSessionTable.is_login == True
+            self.db.query(SessionTable).filter(
+                SessionTable.user_id == admin_id,
+                SessionTable.is_login == True
             ).update({
                 "is_login": False,
                 "logout_at": datetime.now(timezone.utc)
@@ -696,9 +697,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             current_admin.updated_at = datetime.now(timezone.utc)
             
             # Invalidate all sessions except current
-            self.db.query(AdminSessionTable).filter(
-                AdminSessionTable.admin_id == current_admin.admin_id,
-                AdminSessionTable.is_login == True
+            self.db.query(SessionTable).filter(
+                SessionTable.user_id == current_admin.admin_id,
+                SessionTable.is_login == True
             ).update({
                 "is_login": False,
                 "logout_at": datetime.now(timezone.utc)
@@ -718,67 +719,6 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
-
-    def get_user_details(self, user_id: str) -> GlobalResponse:
-        try:
-            user = self.db.query(UserTable).filter(
-                UserTable.user_id == user_id
-            ).first()
-
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-            
-            wallet: WalletTable = user.wallet
-            settings: SettingsTable = user.settings
-            user_kyc: KYCTable = user.user_kyc
-
-            phone = (
-                f"{user.country_code or ''}{user.phone_number}"
-                if user.phone_number
-                else None
-            )
-            
-            return GlobalResponse(
-                success=True,
-                message="User details retrieved successfully",
-                data={
-                    "user": {
-                        "user_id": user.user_id,
-                        "full_name": user.full_name,
-                        "email": user.email_address,
-                        "phone": phone,
-                        "profile_image_url": user.profile_image_url,
-                        "phone_verified": user.phone_verified,
-                        "email_verified": user.email_verified,
-                        "created_at": user.created_at,
-                        "updated_at": user.updated_at
-                    },
-                    "wallet": {
-                        "user_id": wallet.user_id if wallet else None,
-                        "balance": wallet.balance if wallet else 0,
-                        "currency": wallet.currency if wallet else "BDT",
-                        "last_updated": wallet.last_updated if wallet else None
-                    },
-                    "settings": {
-                        "allow_notifications": settings.allow_notifications if settings else True,
-                        "dark_mode": settings.dark_mode if settings else False,
-                        "language": settings.language if settings else "en",
-                        "account_locked": settings.account_locked if settings else False,
-                        "kyc_status": user_kyc.kyc_status if user_kyc else "pending",
-                        "kyc_verified_at": user_kyc.updated_at if user_kyc else None,
-                    }
-                }
-            )
-            
-        except HTTPException:
-            raise
-
-        except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
-
-
-
 
 
 

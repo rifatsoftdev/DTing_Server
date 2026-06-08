@@ -32,8 +32,7 @@ class RegistrationService(UserRepository, TokenGenerators):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
-
-        TokenGenerators.__init__(self, db=db)
+        TokenGenerators.__init__(self)
 
     @staticmethod
     def _is_expired(expires_at: datetime | None) -> bool:

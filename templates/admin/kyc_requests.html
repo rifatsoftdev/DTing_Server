@@ -1,0 +1,361 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'kyc-requests' %}
+
+{% block title %}KYC Requests{% endblock %}
+{% block page_title %}KYC Requests{% endblock %}
+
+{% block extra_css %}
+<style>
+    #kycDetailsModal.modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1055;
+        display: none;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+        outline: 0;
+        background: transparent;
+        border-radius: 0;
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+    }
+
+    #kycDetailsModal.modal.show {
+        display: block;
+        transform: none;
+    }
+
+    #kycDetailsModal .modal-dialog {
+        pointer-events: auto;
+    }
+
+    #kycDetailsModal .modal-body {
+        max-height: none;
+    }
+
+    .modal-backdrop {
+        z-index: 1050;
+    }
+</style>
+{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-outline-primary btn-sm" type="button" onclick="loadKycRequests()">
+    Refresh
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <div>
+                    <h2 class="h5 fw-bold mb-1">Pending Verification</h2>
+                    <p class="text-muted mb-0">Review submitted KYC documents and approve or reject requests.</p>
+                </div>
+                <span class="badge text-bg-warning" id="kycCount">0 Pending</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>User</th>
+                                <th>Document</th>
+                                <th>Status</th>
+                                <th>Submitted</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kycTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-5">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="kycDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold">KYC Request Details</h5>
+                    <p class="text-muted small mb-0" id="detailsUserId"></p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="detailsLoader" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+
+                <div id="detailsContent" class="d-none">
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <p class="text-muted small mb-1">Full Name</p>
+                                <h6 class="fw-bold mb-0" id="detailsName">-</h6>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <p class="text-muted small mb-1">Email</p>
+                                <h6 class="fw-bold mb-0" id="detailsEmail">-</h6>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <p class="text-muted small mb-1">Document</p>
+                                <h6 class="fw-bold mb-0" id="detailsDocument">-</h6>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4" id="documentImages"></div>
+
+                    <div class="mt-4">
+                        <label class="form-label fw-semibold" for="rejectionReason">Rejection Reason</label>
+                        <textarea class="form-control" id="rejectionReason" rows="3" placeholder="Required only when rejecting"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="rejectBtn" onclick="rejectCurrentKyc()">Reject</button>
+                <button type="button" class="btn btn-success" id="approveBtn" onclick="approveCurrentKyc()">Approve</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let kycRequests = [];
+    let selectedUserId = null;
+    let kycModal = null;
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function formatDate(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "-";
+        return date.toLocaleString();
+    }
+
+    function imageCard(title, url) {
+        if (!url) {
+            return `
+                <div class="col-12 col-md-4">
+                    <div class="border rounded p-3 h-100 text-center text-muted">No ${escapeHtml(title)} image</div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="col-12 col-md-4">
+                <div class="border rounded overflow-hidden h-100 bg-light">
+                    <div class="ratio ratio-4x3">
+                        <img src="${escapeHtml(url)}" alt="${escapeHtml(title)}" class="w-100 h-100 object-fit-cover">
+                    </div>
+                    <div class="p-3 d-flex justify-content-between align-items-center gap-2">
+                        <span class="fw-semibold">${escapeHtml(title)}</span>
+                        <a class="btn btn-sm btn-outline-primary" href="${escapeHtml(url)}" target="_blank" rel="noopener">Open</a>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async function loadKycRequests() {
+        const tbody = document.getElementById("kycTableBody");
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5">Loading...</td></tr>';
+
+        try {
+            const response = await fetch("/admin/list-kyc-request", {
+                method: "GET",
+                headers: { ...Auth.getAuthHeader() },
+                credentials: "include"
+            });
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.message || "Failed to load KYC requests");
+            }
+
+            kycRequests = result.data.kyc_request || [];
+            document.getElementById("kycCount").textContent = `${kycRequests.length} Pending`;
+            renderKycRows();
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-5">${escapeHtml(err.message)}</td></tr>`;
+        }
+    }
+
+    function renderKycRows() {
+        const tbody = document.getElementById("kycTableBody");
+        tbody.innerHTML = "";
+
+        if (!kycRequests.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5">No pending KYC requests.</td></tr>';
+            return;
+        }
+
+        kycRequests.forEach(item => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>
+                    <div class="fw-semibold">${escapeHtml(item.full_name)}</div>
+                    <div class="text-muted small">${escapeHtml(item.email_address)}</div>
+                    <div class="text-muted small">${escapeHtml(item.user_id)}</div>
+                </td>
+                <td>
+                    <div class="fw-semibold">${escapeHtml(item.document_type)}</div>
+                    <div class="text-muted small">${escapeHtml(item.document_number || "-")}</div>
+                </td>
+                <td><span class="badge text-bg-warning">${escapeHtml(item.kyc_status || "pending")}</span></td>
+                <td>${escapeHtml(formatDate(item.submitted_at))}</td>
+                <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" type="button" onclick='openKycDetails(${JSON.stringify(item.user_id)})'>View</button>
+                        <button class="btn btn-outline-success" type="button" onclick='approveKyc(${JSON.stringify(item.user_id)})'>Approve</button>
+                        <button class="btn btn-outline-danger" type="button" onclick='openKycDetails(${JSON.stringify(item.user_id)}, true)'>Reject</button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function openKycDetails(userId, focusRejectReason = false) {
+        selectedUserId = userId;
+        document.getElementById("detailsLoader").classList.remove("d-none");
+        document.getElementById("detailsContent").classList.add("d-none");
+        document.getElementById("rejectionReason").value = "";
+        document.getElementById("detailsUserId").textContent = userId;
+        kycModal.show();
+
+        try {
+            const response = await fetch(`/admin/kyc-request-details/${encodeURIComponent(userId)}`, {
+                method: "GET",
+                headers: { ...Auth.getAuthHeader() },
+                credentials: "include"
+            });
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.message || "Failed to load KYC details");
+            }
+
+            const data = result.data;
+            document.getElementById("detailsName").textContent = data.full_name || "-";
+            document.getElementById("detailsEmail").textContent = data.email_address || "-";
+            document.getElementById("detailsDocument").textContent = `${data.document_type || "-"} / ${data.document_number || "-"}`;
+            document.getElementById("documentImages").innerHTML = [
+                imageCard("Front", data.front_image_url),
+                imageCard("Back", data.back_image_url),
+                imageCard("Selfie", data.selfie_image_url)
+            ].join("");
+
+            document.getElementById("detailsContent").classList.remove("d-none");
+            if (focusRejectReason) {
+                document.getElementById("rejectionReason").focus();
+            }
+        } catch (err) {
+            showToast(err.message || "Failed to load KYC details", "error");
+            kycModal.hide();
+        } finally {
+            document.getElementById("detailsLoader").classList.add("d-none");
+        }
+    }
+
+    async function updateKycStatus(userId, status, rejectionReason = null) {
+        const response = await fetch("/admin/update-kyc-request", {
+            method: "POST",
+            headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+                user_id: userId,
+                kyc_status: status,
+                rejection_reason: rejectionReason
+            })
+        });
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            throw new Error(result.detail || result.message || "Failed to update KYC request");
+        }
+
+        return result;
+    }
+
+    async function approveKyc(userId) {
+        try {
+            await updateKycStatus(userId, "verified");
+            showToast("KYC request approved", "success");
+            if (kycModal) kycModal.hide();
+            await loadKycRequests();
+        } catch (err) {
+            showToast(err.message || "Failed to approve KYC request", "error");
+        }
+    }
+
+    async function approveCurrentKyc() {
+        if (!selectedUserId) return;
+        await approveKyc(selectedUserId);
+    }
+
+    async function rejectCurrentKyc() {
+        if (!selectedUserId) return;
+        const reason = document.getElementById("rejectionReason").value.trim();
+
+        if (!reason) {
+            showToast("Rejection reason is required", "warning");
+            return;
+        }
+
+        try {
+            await updateKycStatus(selectedUserId, "rejected", reason);
+            showToast("KYC request rejected", "success");
+            kycModal.hide();
+            await loadKycRequests();
+        } catch (err) {
+            showToast(err.message || "Failed to reject KYC request", "error");
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const kycModalElement = document.getElementById("kycDetailsModal");
+        kycModal = bootstrap.Modal.getOrCreateInstance(kycModalElement);
+        kycModalElement.addEventListener("hidden.bs.modal", function() {
+            selectedUserId = null;
+            document.body.classList.remove("modal-open");
+            document.body.style.removeProperty("overflow");
+            document.body.style.removeProperty("padding-right");
+            document.querySelectorAll(".modal-backdrop").forEach(backdrop => backdrop.remove());
+        });
+        loadKycRequests();
+    });
+</script>
+{% endblock %}

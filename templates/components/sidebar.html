@@ -1,0 +1,24 @@
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="logo">
+            <img src="/static/image/logo.png" alt="PocketPay Logo">
+            <span class="logo-text">DTing Server</span>
+        </div>
+        <button class="sidebar-toggle" onclick="toggleSidebar()">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+    <nav class="sidebar-nav">
+        <ul>
+            <li class="nav-item {{ 'active' if active_page == 'dashboard' }}" data-page="dashboard"><a href="/admin/dashboard"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a></li>
+            <li class="nav-item {{ 'active' if active_page == 'users' }}" data-page="users"><a href="/admin/users"><i class="fas fa-users"></i><span>Users</span></a></li>
+            <li class="nav-item {{ 'active' if active_page == 'countries' }}" data-page="countries"><a href="/admin/countries"><i class="fas fa-globe"></i><span>Countries</span></a></li>
+            <li class="nav-item {{ 'active' if active_page == 'offers' }}" data-page="offers"><a href="/admin/offers"><i class="fas fa-tags"></i><span>Offers</span></a></li>
+            <li class="nav-item {{ 'active' if active_page == 'kyc-requests' }}" data-page="kyc-requests"><a href="/admin/kyc-requests"><i class="fas fa-id-card"></i><span>KYC Requests</span></a></li>
+            <li class="nav-item {{ 'active' if active_page == 'delete-account-requests' }}" data-page="delete-account-requests"><a href="/admin/delete-account-requests"><i class="fas fa-user-slash"></i><span>Delete Requests</span></a></li>
+            <li class="nav-item {{ 'active' if active_page == 'settings' }}" data-page="settings"><a href="/admin/settings"><i class="fas fa-cog"></i><span>Settings</span></a></li>
+            <li class="nav-divider"></li>
+            <li class="nav-item {{ 'active' if active_page == 'profile' }}" data-page="profile"><a href="/admin/profile"><i class="fas fa-user"></i><span>Profile</span></a></li>
+        </ul>
+    </nav>
+</aside>

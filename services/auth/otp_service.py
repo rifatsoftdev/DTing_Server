@@ -20,7 +20,7 @@ class OTPService(TokenGenerators):
         request: Request,
         authorization: str
     ):
-        TokenGenerators.__init__(self, db)
+        TokenGenerators.__init__(self)
         self.db = db
         self.background_tasks = background_tasks
         self.request = request

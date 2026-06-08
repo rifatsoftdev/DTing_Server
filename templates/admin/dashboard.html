@@ -1,0 +1,375 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'dashboard' %}
+
+{% block title %}DTing Dashboard{% endblock %}
+{% block page_title %}DTing Dashboard{% endblock %}
+
+{% block header_actions %}
+<button class="header-btn" onclick="loadDashboardStats()" title="Refresh Stats">
+    <i class="fas fa-sync-alt"></i>
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="page active">
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon users me-3">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Total Users</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="totalUsers">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon active-users me-3">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Active Users (Today)</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="activeUsersToday">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon info me-3">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Active Users (7 Days)</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="activeUsers7Days">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon info me-3">
+                        <i class="fas fa-chart-area"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Active Users (30 Days)</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="activeUsers30Days">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon new-users me-3">
+                        <i class="fas fa-user-plus"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">New Registrations (Today)</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="newRegistrationsToday">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon info me-3">
+                        <i class="fas fa-user-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">New Registrations (7 Days)</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="newRegistrations7Days">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon info me-3">
+                        <i class="fas fa-user-friends"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">New Registrations (30 Days)</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="newRegistrations30Days">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon wallets me-3">
+                        <i class="fas fa-wifi"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Online Users</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="onlineUsers">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon warning me-3">
+                        <i class="fas fa-hourglass-half"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Pending KYC</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="pendingKyc">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon success me-3">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Approved KYC</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="approvedKyc">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon danger me-3">
+                        <i class="fas fa-times-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Rejected KYC</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="rejectedKyc">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon wallets me-3">
+                        <i class="fas fa-bell"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Total Notifications</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="totalNotifications">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-xl-3 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 stat-card">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon danger me-3">
+                        <i class="fas fa-user-times"></i>
+                    </div>
+                    <div class="stat-info">
+                        <small class="text-muted stat-label">Deleted Accounts</small>
+                        <h4 class="mb-0 fw-bold stat-value" id="deletedAccounts">0</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-9 col-md-6 col-sm-12">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-heartbeat me-2 text-primary"></i>System Health</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>API Server</span>
+                        <span id="apiServerStatus" class="badge bg-success">Online</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>Database</span>
+                        <span id="databaseStatus" class="badge bg-success">Healthy</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>Redis</span>
+                        <span id="redisStatus" class="badge bg-success">Connected</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>WebSocket</span>
+                        <span id="websocketStatus" class="badge bg-primary">Active</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Storage</span>
+                        <span id="storageUsage" class="badge bg-warning">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-users me-2 text-primary"></i>Recent Users</h5>
+                    <a href="/admin/users" class="btn btn-sm btn-outline-primary">View All</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead class="bg-light">
+                            <tr class="text-muted small text-uppercase">
+                                <th>User ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>KYC Status</th>
+                                <th>Status</th>
+                                <th>Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentUsers">
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadDashboardStats() {
+    try {
+        const response = await fetch("/admin/dashboard/stats", {
+            method: "GET",
+            headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+            credentials: "include"
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch dashboard stats");
+        }
+
+        const result = await response.json();
+        const data = result.data;
+
+        if (data) {
+            document.getElementById("totalUsers").textContent = data.users?.total || 0;
+            document.getElementById("onlineUsers").textContent = data.users?.online || 0;
+            document.getElementById("activeUsersToday").textContent = data.users?.active_today || 0;
+            document.getElementById("activeUsers7Days").textContent = data.users?.active_7_days || 0;
+            document.getElementById("activeUsers30Days").textContent = data.users?.active_30_days || 0;
+
+            document.getElementById("newRegistrationsToday").textContent = data.registrations?.today || 0;
+            document.getElementById("newRegistrations7Days").textContent = data.registrations?.last_7_days || 0;
+            document.getElementById("newRegistrations30Days").textContent = data.registrations?.last_30_days || 0;
+
+            document.getElementById("pendingKyc").textContent = data.kyc?.pending || 0;
+            document.getElementById("approvedKyc").textContent = data.kyc?.approved || 0;
+            document.getElementById("rejectedKyc").textContent = data.kyc?.rejected || 0;
+
+            document.getElementById("totalNotifications").textContent = data.notifications?.total || 0;
+            document.getElementById("deletedAccounts").textContent = data.deleted_accounts || 0;
+        }
+    } catch (err) {
+        console.error("Dashboard stats error:", err);
+        showToast("Failed to load dashboard stats", "error");
+    }
+}
+
+async function loadRecentUsers() {
+    try {
+        const response = await fetch("/admin/users-list?page=1&limit=10", {
+            method: "GET",
+            headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+            credentials: "include"
+        });
+
+        const tbody = document.getElementById("recentUsers");
+
+        if (!response.ok) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">Failed to load users</td></tr>';
+            return;
+        }
+
+        const result = await response.json();
+        const users = result.data?.users || [];
+
+        tbody.innerHTML = "";
+
+        if (users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4">No users found</td></tr>';
+            return;
+        }
+
+        users.forEach(user => {
+            const tr = document.createElement("tr");
+            const kycBadgeClass = user.kyc_status === 'verified' ? 'success' : (user.kyc_status === 'rejected' ? 'danger' : 'warning');
+            const statusBadgeClass = user.is_active ? 'success' : 'danger';
+
+            tr.innerHTML = `
+                <td class="small text-muted">#${user.user_id?.substring(0, 8) || '---'}</td>
+                <td class="fw-medium">${user.full_name || '-'}</td>
+                <td class="small">${user.email || '-'}</td>
+                <td><span class="badge bg-${kycBadgeClass}">${user.kyc_status || 'pending'}</span></td>
+                <td><span class="badge bg-${statusBadgeClass}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td class="small text-muted">${user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error("Recent users error:", err);
+        document.getElementById("recentUsers").innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger">Error loading data</td></tr>';
+    }
+}
+
+function initializeDashboard() {
+    loadDashboardStats();
+    loadRecentUsers();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    initializeDashboard();
+});
+</script>
+{% endblock %}

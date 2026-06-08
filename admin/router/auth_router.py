@@ -5,7 +5,7 @@ from typing import Optional
 from app.core.database import get_db
 from admin.schema.admin_schema import *
 from app.schema.global_schema import GlobalResponse
-from services.admin.admin_services import AdminManagementServices
+from services.admin.admin_auth import AdminManagementServices
 
 
 
@@ -59,7 +59,7 @@ async def admin_logout(
 
 # ==============================================================================
 
-@admin_auth_router.post("/refresh", response_model=GlobalResponse)
+@admin_auth_router.post("/refresh-access-token", response_model=GlobalResponse)
 async def refresh_admin_token(
     payload: AdminRefreshTokenRequest,
     request: Request,

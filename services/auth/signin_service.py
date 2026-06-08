@@ -38,6 +38,7 @@ class SigninService(TokenGenerators, UserRepository):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
+        TokenGenerators.__init__(self)
 
     def _masked_tfa_destination(self, method_type: str, method: TwoFactorTable, user: UserTable) -> str | None:
         delivery_address = method.delivery_address

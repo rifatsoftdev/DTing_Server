@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PocketPay Admin - {% block title %}{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="/static/image/logo.png">
+    <link rel="stylesheet" href="/static/bootstrap-5.3.8-dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="dashboard-page">
+    {% from 'components/admin_header.html' import admin_header %}
+    {% include 'components/sidebar.html' %}
+
+    <main class="main-content">
+        {% set page_title_content %}{% block page_title %}{% endblock %}{% endset %}
+        {% set header_actions_content %}{% block header_actions %}{% endblock %}{% endset %}
+        {{ admin_header(page_title_content, header_actions_content) }}
+
+        <div class="page-content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    {% block modals %}{% endblock %}
+
+    {% include 'components/toast_container.html' %}
+
+    {% include 'components/admin_scripts.html' %}
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

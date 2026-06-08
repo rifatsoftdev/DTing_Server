@@ -1,0 +1,423 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'users' %}
+
+{% block title %}Users{% endblock %}
+{% block page_title %}Users{% endblock %}
+
+{% block extra_css %}
+<style>
+    #userModal.modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1060;
+        display: none;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background: transparent;
+        border-radius: 0;
+        outline: 0;
+        transform: none;
+        visibility: visible;
+    }
+
+    #userModal.modal.show {
+        display: block;
+        transform: none;
+    }
+
+    #userModal .modal-dialog {
+        pointer-events: auto;
+    }
+
+    .modal-backdrop {
+        z-index: 1050;
+    }
+</style>
+{% endblock %}
+
+{% block header_actions %}
+    <button class="header-btn" onclick="loadUsers()">
+        <i class="fas fa-sync-alt"></i>
+    </button>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <h5 class="mb-0 fw-bold text-dark">
+                <i class="fas fa-users me-2 text-primary"></i>User Management
+            </h5>
+            <button class="btn btn-primary btn-sm px-3" onclick="exportUsers()">
+                <i class="fas fa-download me-1"></i> Export Users
+            </button>
+        </div>
+        <div class="card-body">
+            <!-- Filters -->
+            <div class="row g-2 mb-4">
+                <div class="col-12 col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" id="userSearch" class="form-control bg-light border-start-0 shadow-none" placeholder="Search users..." onkeyup="handleSearch(event)">
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select id="kycFilter" class="form-select shadow-none" onchange="applyFilters()">
+                        <option value="">KYC Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="verified">Verified</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select id="statusFilter" class="form-select shadow-none" onchange="applyFilters()">
+                        <option value="">Account Status</option>
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select id="sortBy" class="form-select shadow-none" onchange="applyFilters()">
+                        <option value="created_at">Joined Date</option>
+                        <option value="full_name">Full Name</option>
+                        <option value="wallet_balance">Balance</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select id="sortOrder" class="form-select shadow-none" onchange="applyFilters()">
+                        <option value="desc">Descending</option>
+                        <option value="asc">Ascending</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="bg-light">
+                        <tr class="text-muted small text-uppercase">
+                            <th class="ps-3 border-0">User ID</th>
+                            <th class="border-0">Name</th>
+                            <th class="border-0">Email</th>
+                            <th class="border-0">Phone</th>
+                            <th class="border-0 text-center">KYC</th>
+                            <th class="border-0 text-center">Status</th>
+                            <th class="border-0">Balance</th>
+                            <th class="border-0">Joined</th>
+                            <th class="border-0 text-end pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="9" class="text-center py-5 text-muted">Loading users...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div id="paginationInfo" class="text-muted small">Showing 0 users</div>
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item">
+                            <button class="page-link shadow-none" onclick="changePage(-1)" id="prevPage" disabled>Previous</button>
+                        </li>
+                        <li class="page-item disabled"><span class="page-link" id="pageInfo">Page 1</span></li>
+                        <li class="page-item">
+                            <button class="page-link shadow-none" onclick="changePage(1)" id="nextPage">Next</button>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="modalTitle">Details</h5>
+                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+    <script>
+        // ==================== Users Page State ====================
+        let currentPage = 1;
+        let pageSize = 20;
+        let totalPages = 0;
+        let totalUsers = 0;
+        let searchTimeout = null;
+        let bsModal;
+        let currentUserId = null;
+
+        // ==================== Load Users ====================
+        async function loadUsers() {
+            const tbody = document.getElementById("usersTableBody");
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5">Loading users...</td></tr>';
+            
+            const search = document.getElementById("userSearch").value;
+            const kycStatus = document.getElementById("kycFilter").value;
+            const isActive = document.getElementById("statusFilter").value;
+            const sortBy = document.getElementById("sortBy").value;
+            const sortOrder = document.getElementById("sortOrder").value;
+
+            try {
+                const params = new URLSearchParams({ page: currentPage, limit: pageSize, sort_by: sortBy, sort_order: sortOrder });
+                if (search) params.append("search", search);
+                if (kycStatus) params.append("kyc_status", kycStatus);
+                if (isActive) params.append("is_active", isActive);
+
+                const response = await fetch(`/admin/users-list?${params}`, {
+                    method: "GET",
+                    headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                    credentials: "include",
+                });
+
+                if (!response.ok) throw new Error("Failed to fetch users");
+
+                const result = await response.json();
+                const users = result.data.users;
+                const pagination = result.pagination;
+
+                totalPages = pagination.total_pages;
+                totalUsers = pagination.total;
+                currentPage = pagination.page;
+
+                tbody.innerHTML = "";
+
+                if (!users || users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5">No users found</td></tr>';
+                    updatePaginationInfo();
+                    return;
+                }
+
+                users.forEach(user => {
+                    const tr = document.createElement("tr");
+                    const kycBadgeType = user.kyc_status === 'verified' ? 'success' : (user.kyc_status === 'rejected' ? 'danger' : 'warning');
+                    const statusBadgeType = user.is_active ? 'success' : 'danger';
+                    const balance = parseFloat(user.wallet_balance || 0).toLocaleString('en-BD', { minimumFractionDigits: 2 });
+                    const date = new Date(user.created_at).toLocaleDateString('en-BD');
+
+                    tr.innerHTML = `
+                        <td class="ps-3 small text-muted">#${user.user_id.substring(0, 8)}</td>
+                        <td class="fw-medium">${user.full_name || '-'}</td>
+                        <td class="small">${user.email || '-'}</td>
+                        <td class="small">${user.phone || '-'}</td>
+                        <td class="text-center"><span class="badge bg-${kycBadgeType}">${user.kyc_status || 'Pending'}</span></td>
+                        <td class="text-center"><span class="badge bg-${statusBadgeType}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
+                        <td class="fw-bold">৳${balance}</td>
+                        <td class="small text-muted">${date}</td>
+                        <td class="text-end pe-3">
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-light border" onclick="viewUser('${user.user_id}')"><i class="fas fa-eye"></i></button>
+                                <button class="btn btn-sm btn-light border" onclick="openNotifyModal('${user.user_id}', '${user.full_name}')"><i class="fas fa-bell"></i></button>
+                            </div>
+                        </td>`;
+                    tbody.appendChild(tr);
+                });
+                updatePaginationInfo();
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-danger">Error loading data.</td></tr>';
+            }
+        }
+
+        // ==================== Pagination ====================
+        function updatePaginationInfo() {
+            document.getElementById("paginationInfo").innerText = `Total Users: ${totalUsers}`;
+            document.getElementById("pageInfo").innerText = `Page ${currentPage} of ${totalPages || 1}`;
+            document.getElementById("prevPage").disabled = currentPage <= 1;
+            document.getElementById("nextPage").disabled = currentPage >= totalPages;
+        }
+
+        function changePage(delta) {
+            currentPage += delta;
+            loadUsers();
+        }
+
+        function handleSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => { currentPage = 1; loadUsers(); }, 500);
+        }
+
+        function applyFilters() { currentPage = 1; loadUsers(); }
+
+        function showModal(title, content) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalBody').innerHTML = content;
+            cleanupModalState();
+            bsModal.show();
+        }
+
+        function closeUserModal() { bsModal.hide(); }
+
+        function cleanupModalState() {
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const userModalEl = document.getElementById('userModal');
+            bsModal = new bootstrap.Modal(userModalEl);
+            userModalEl.addEventListener('hidden.bs.modal', cleanupModalState);
+            loadUsers();
+        });
+
+        // Placeholder functions for modal actions
+        async function viewUser(userId) {
+            showModal('User Details', '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>');
+            
+            try {
+                const response = await fetch(`/admin/users/${userId}`, {
+                    method: "GET",
+                    headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                    credentials: "include",
+                });
+
+                if (!response.ok) throw new Error("Failed to fetch details");
+
+                const result = await response.json();
+                const { user, wallet, settings } = result.data;
+                
+                const content = `
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded shadow-sm h-100">
+                                <h6 class="fw-bold mb-3 border-bottom pb-2">Personal Info</h6>
+                                <p class="mb-1 small text-muted">Full Name</p>
+                                <p class="fw-medium">${user.full_name || '-'}</p>
+                                <p class="mb-1 small text-muted">Email</p>
+                                <p class="fw-medium">${user.email || '-'}</p>
+                                <p class="mb-1 small text-muted">Phone</p>
+                                <p class="fw-medium">${user.phone || '-'}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded shadow-sm h-100">
+                                <h6 class="fw-bold mb-3 border-bottom pb-2">Account Status</h6>
+                                <p class="mb-1 small text-muted">KYC Status</p>
+                                <span class="badge bg-${settings.kyc_status === 'verified' ? 'success' : 'warning'} mb-2">${settings.kyc_status}</span>
+                                <p class="mb-1 small text-muted">Account Locked</p>
+                                <span class="badge bg-${settings.account_locked ? 'danger' : 'success'}">${settings.account_locked ? 'Locked' : 'Unlocked'}</span>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="p-3 bg-primary bg-opacity-10 rounded border border-primary border-opacity-25 shadow-sm">
+                                <h6 class="fw-bold text-primary mb-3">Wallet Information</h6>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <p class="mb-0 text-muted small">Current Balance</p>
+                                        <h4 class="mb-0 fw-bold">৳${parseFloat(wallet.balance).toLocaleString('en-BD')}</h4>
+                                    </div>
+                                    <button class="btn btn-primary btn-sm" onclick="closeUserModal()">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('modalBody').innerHTML = content;
+            } catch (err) {
+                document.getElementById('modalBody').innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+            }
+        }
+
+        function openNotifyModal(id, name) {
+            currentUserId = id;
+            const content = `
+                <form id="notifyForm" onsubmit="sendUserNotification(event)">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Target User</label>
+                        <input type="text" class="form-control bg-light" value="${name} (#${id.substring(0,8)})" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Title</label>
+                        <input type="text" id="notyTitle" class="form-control shadow-none" placeholder="e.g. Account Update" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Message</label>
+                        <textarea id="notyMessage" class="form-control shadow-none" rows="3" placeholder="Enter notification message..." required></textarea>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold">Type</label>
+                            <select id="notyType" class="form-select shadow-none">
+                                <option value="alert">Alert</option>
+                                <option value="info">Info</option>
+                                <option value="success">Success</option>
+                            </select>
+                        </div>
+                        <div class="col-6 d-flex align-items-end">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="sendEmail">
+                                <label class="form-check-label small" for="sendEmail">Send Email</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary px-4">Send Now <i class="fas fa-paper-plane ms-1 small"></i></button>
+                    </div>
+                </form>
+            `;
+            showModal('Send Notification', content);
+        }
+
+        async function sendUserNotification(event) {
+            event.preventDefault();
+            const btn = event.submitter;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+
+            const payload = {
+                title: document.getElementById('notyTitle').value,
+                message: document.getElementById('notyMessage').value,
+                notification_type: document.getElementById('notyType').value,
+                send_push: true,
+                send_email: document.getElementById('sendEmail').checked
+            };
+
+            try {
+                const response = await fetch(`/admin/users/${currentUserId}/notify`, {
+                    method: "POST",
+                    headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("Failed to send notification");
+                
+                alert("Notification sent successfully!");
+                closeUserModal();
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Send Now <i class="fas fa-paper-plane ms-1 small"></i>';
+            }
+        }
+
+        function toggleUserStatus(id, s) { 
+            if(confirm(`Are you sure you want to ${s ? 'activate' : 'deactivate'} user ${id}?`)) { 
+                // এই API টি আপনার auth_router.py এ আছে (/admin/users/{user_id}/status)
+            } 
+        }
+        
+        function exportUsers() { alert('Exporting users to CSV...'); }
+    </script>
+{% endblock %}

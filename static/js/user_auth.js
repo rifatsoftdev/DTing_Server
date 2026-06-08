@@ -6,6 +6,7 @@ function resolveDeviceIdentity() {
     return { device_id, device_uuid };
 }
 
+
 async function parseResponseError(response) {
     let message = "Request failed";
     const raw = await response.text();

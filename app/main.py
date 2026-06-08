@@ -36,12 +36,14 @@ import app.core.firebase
 
 
 
+
 # create FastAPI
 app = FastAPI(
     title="PocketPay API",
     description="A complete digital wallet and payment solution",
     version=ENV.VERSION,
 )
+
 
 # Configure CORS middleware
 app.add_middleware(
@@ -51,6 +53,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
 
 # Configure authentication middleware
 app.add_middleware(
@@ -75,13 +78,14 @@ app.add_middleware(
     ]
 )
 
+
 # Configure static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 TMP_DIR = Path("uploads/tmp")
 
 
-# 
+# Startup event
 @app.on_event("startup")
 def startup_event():
     db = SessionLocal()
@@ -97,16 +101,12 @@ def startup_event():
         db.close()
 
 
-
-
-# 
+# Shutdown event
 @app.on_event("shutdown")
 def shutdown_event():
     exit_code = 1
     # exit_code = os.system("find . -type d -name \"__pycache__\" -exec rm -rf {} +")
     print(f"{AnsiColor.BLUE}INFO:{AnsiColor.RESET}     Shutting down application... Cleaning up resources exit code {exit_code}")
-
-
 
 
 # Custom exception handlers
@@ -115,18 +115,16 @@ async def custom_404_handler(request: Request, exc: HTTPException):
     message = exc.detail if getattr(exc, "detail", None) else "Not Found"
 
     return HTMLResponse(
-        content=templates.get_template("404.html").render(request=request, message=message),
+        content=templates.get_template("server/404.html").render(request=request, message=message),
         status_code=status.HTTP_404_NOT_FOUND
     )
-
-
 
 
 # Custom exception handlers
 @app.exception_handler(Exception)
 async def server_exception_handler(request: Request, exc: Exception):
     return HTMLResponse(
-        content=templates.get_template("500.html").render(request=request, message=str(exc)),
+        content=templates.get_template("server/500.html").render(request=request, message=str(exc)),
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
     )
 
@@ -177,6 +175,21 @@ async def root(
     )
 
 
+# ==============================================================================
+
+@app.get("/.well-known/public.pem")
+async def public_key(request: Request):
+    public_key_path = "etc/secrets/public.pem"
+
+    if not os.path.exists(public_key_path):
+        print(1)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Public key not found"
+        )
+    
+    return FileResponse(public_key_path)
+    
 
 
 # ==============================================================================

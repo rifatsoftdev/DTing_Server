@@ -10,9 +10,14 @@ from app.utils import Hashing
 
 
 class TokenGenerators:
-    def __init__(self, db: Session):
-        self.SECRET_KEY = ENV.SECRET_KEY
-        self.ALGORITHM = ENV.ALGORITHM
+    def __init__(self):
+        with open("etc/secrets/private.pem", "r") as f:
+            self.PRIVATE_KEY = f.read()
+
+        with open("etc/secrets/public.pem", "r") as f:
+            self.PUBLIC_KEY = f.read()
+
+        self.ALGORITHM = "RS256"
 
     def _create_token(
         self,
@@ -28,20 +33,22 @@ class TokenGenerators:
             "type": token_type
         })
         
-        return jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
+        return jwt.encode(to_encode, self.PRIVATE_KEY, algorithm=self.ALGORITHM)
         
     def _decode_token(self, token: str):
         try:
             payload = jwt.decode(
                 token,
-                self.SECRET_KEY,
+                self.PUBLIC_KEY,
                 algorithms=[self.ALGORITHM]
             )
             return payload
         
         except JWTError as j:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     JWT Error: {j}")
             return None
     
+
 
 class TokenService(TokenGenerators):
     def __init__(
@@ -51,7 +58,7 @@ class TokenService(TokenGenerators):
         request: Request,
         authorization: str
     ):
-        super().__init__(db)
+        super().__init__()
         self.db = db
         self.background_tasks = background_tasks
         self.request = request

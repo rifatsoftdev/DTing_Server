@@ -38,6 +38,8 @@ class UserTable(Base):
 
     referral_account = Column(String, unique=False, nullable=True)
 
+    last_active_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=utc6dhaka)
     updated_at = Column(DateTime(timezone=True), onupdate=utc6dhaka)
 
@@ -103,3 +105,5 @@ class UserTable(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+

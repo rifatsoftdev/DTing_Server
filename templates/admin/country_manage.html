@@ -1,0 +1,259 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'countries' %}
+
+{% block title %}Manage Countries{% endblock %}
+{% block page_title %}Manage Countries{% endblock %}
+
+{% block header_actions %}
+<button class="header-btn" onclick="fetchCountries()" title="Refresh">
+    <i class="fas fa-sync-alt"></i>
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="profile-card" id="listSection">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3><i class="fas fa-list"></i> Supported Countries</h3>
+        <button class="btn btn-primary btn-sm" onclick="showCreateForm()">
+            <i class="fas fa-plus"></i> Add New Country
+        </button>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Flag Emoji</th>
+                        <th>Name</th>
+                        <th>Code</th>
+                        <th>Currency</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="countryTableBody">
+                    <tr><td colspan="6" style="text-align:center; padding: 20px;">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="profile-card" id="formSection" style="display: none; margin-top: 24px;">
+    <div class="card-header">
+        <h3 id="formTitle"><i class="fas fa-globe"></i> New Country</h3>
+    </div>
+    <div class="card-body" style="padding: 20px 24px;">
+        <form id="countryForm" class="modal-form">
+            <input type="hidden" id="editingCountryId">
+            <div class="form-group">
+                <label>Country Name</label>
+                <input type="text" id="counrtyName" required placeholder="e.g. Bangladesh">
+            </div>
+            <div class="form-group">
+                <label>Country Code</label>
+                <input type="text" id="counrtyCode" required placeholder="e.g. +880">
+            </div>
+            <div class="form-group">
+                <label>Flag Emoji</label>
+                <input type="text" id="flagEmoji" required placeholder="e.g. BD">
+            </div>
+            <div class="form-group">
+                <label>Currency</label>
+                <input type="text" id="currency" required placeholder="e.g. BDT">
+            </div>
+            <div class="form-group">
+                <label>Currency Symbol</label>
+                <input type="text" id="currencySymbol" required placeholder="e.g. Tk">
+            </div>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="hideForm()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <i class="fas fa-save"></i> Save Country
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allCountries = [];
+    let isEditing = false;
+
+    async function fetchCountries() {
+        const tbody = document.getElementById("countryTableBody");
+
+        try {
+            const response = await fetch("/country/counties", {
+                method: "GET",
+                headers: { ...Auth.getAuthHeader() }
+            });
+            
+            const result = await response.json();
+
+            if (!response.ok) throw new Error(result.detail || "Failed to fetch");
+
+            allCountries = result.data.countries || [];
+            tbody.innerHTML = "";
+
+            if (allCountries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">No countries found.</td></tr>';
+                return;
+            }
+            
+            allCountries.forEach(country => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td title="${country.country_code}">${country.country_id.substring(0, 8)}...</td>
+                    <td style="font-size: 20px;">${country.flag_emoji}</td>
+                    <td><strong>${country.country_name}</strong></td>
+                    <td>${country.country_code}</td>
+                    <td>${country.currency} (${country.currency_symbol})</td>
+                    <td>
+                        <div class="actions">
+                            <button class="action-btn" onclick="editCountry('${country.country_id}')" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="action-btn danger" onclick="disableCountry('${country.country_id}')" title="Disable">
+                                <i class="fas fa-ban"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px; color: red;">Error loading data.</td></tr>';
+        }
+    }
+
+    function showCreateForm() {
+        isEditing = false;
+        document.getElementById("editingCountryId").value = "";
+        document.getElementById("countryForm").reset();
+        document.getElementById("formTitle").innerHTML = '<i class="fas fa-plus"></i> New Country';
+        document.getElementById("submitBtn").innerHTML = '<i class="fas fa-plus"></i> Add Country';
+        document.getElementById("formSection").style.display = "block";
+        window.scrollTo({ top: document.getElementById("formSection").offsetTop - 100, behavior: "smooth" });
+    }
+
+    function editCountry(id) {
+        const country = allCountries.find(c => c.counrty_id === id);
+        if (!country) return;
+        isEditing = true;
+        document.getElementById("editingCountryId").value = id;
+        document.getElementById("counrtyName").value = country.counrty_name;
+        document.getElementById("counrtyCode").value = country.counrty_code;
+        document.getElementById("flagEmoji").value = country.flag_emoji;
+        document.getElementById("currency").value = country.currency;
+        document.getElementById("currencySymbol").value = country.currency_symbol;
+
+        document.getElementById("formTitle").innerHTML = '<i class="fas fa-edit"></i> Edit Country';
+        document.getElementById("submitBtn").innerHTML = '<i class="fas fa-save"></i> Update Country';
+        document.getElementById("formSection").style.display = "block";
+        window.scrollTo({ top: document.getElementById("formSection").offsetTop - 100, behavior: "smooth" });
+    }
+
+    function hideForm() {
+        document.getElementById("formSection").style.display = "none";
+    }
+
+    function getVerificationPayload() {
+        const accessToken = localStorage.getItem("admin_access_token") || Auth.getCookie("admin_access_token");
+        const adminId = localStorage.getItem("admin_id");
+        const deviceId = localStorage.getItem("admin_device_id") || Auth.getDeviceId();
+        const deviceUuid = localStorage.getItem("admin_device_uuid") || Auth.getDeviceUuid();
+
+        if (!adminId || !accessToken) {
+            throw new Error("Admin session not found. Please login again.");
+        }
+
+        return {
+            user_id: adminId,
+            access_token: accessToken,
+            device_id: deviceId,
+            device_uuid: deviceUuid,
+            user_password: ""
+        };
+    }
+
+    async function addNewCountry(payload) {
+        const response = await fetch("/country/add-new-country", {
+            method: "POST",
+            headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.detail || data.message || "Operation failed");
+        return data;
+    }
+
+    async function updateCountry(id, payload) {
+        const response = await fetch(`/country/country-edit/${id}`, {
+            method: "PUT",
+            headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.detail || data.message || "Operation failed");
+        return data;
+    }
+
+    async function saveCountry(event) {
+        event.preventDefault();
+        try {
+            const payload = {
+                counrty_name: document.getElementById("counrtyName").value.trim(),
+                counrty_code: document.getElementById("counrtyCode").value.trim(),
+                flag_emoji: document.getElementById("flagEmoji").value.trim(),
+                currency: document.getElementById("currency").value.trim(),
+                currency_symbol: document.getElementById("currencySymbol").value.trim(),
+                ...getVerificationPayload()
+            };
+
+            if (isEditing) {
+                const countryId = document.getElementById("editingCountryId").value;
+                await updateCountry(countryId, payload);
+                showToast("Updated successfully", "success");
+            } else {
+                await addNewCountry(payload);
+                showToast("Added successfully", "success");
+            }
+
+            hideForm();
+            fetchCountries();
+        } catch (err) {
+            showToast(err.message, "error");
+        }
+    }
+
+    async function disableCountry(id) {
+        if (!confirm("Are you sure?")) return;
+        try {
+            const response = await fetch("/country/inactive-country", {
+                method: "POST",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ...getVerificationPayload(),
+                    counrty_id: id
+                })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.detail || data.message || "Failed to disable");
+            showToast("Country disabled successfully", "success");
+            fetchCountries();
+        } catch (err) {
+            showToast(err.message, "error");
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        fetchCountries();
+        document.getElementById("countryForm").addEventListener("submit", saveCountry);
+    });
+</script>
+{% endblock %}
