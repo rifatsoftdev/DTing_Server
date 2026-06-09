@@ -121,7 +121,7 @@ class AuthService {
     }
 
     async refreshAccessToken(refreshToken) {
-        const response = await window.__rawFetch("/admin/refresh", {
+        const response = await window.__rawFetch("/admin/refresh-access-token", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
@@ -207,7 +207,7 @@ class AuthService {
         const url = typeof input === "string" ? input : input?.url || "";
         return url.includes("/admin/login")
             || url.includes("/admin/logout")
-            || url.includes("/admin/refresh");
+            || url.includes("/admin/refresh-access-token");
     }
 
     // get cookie value

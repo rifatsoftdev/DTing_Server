@@ -5,13 +5,14 @@ from datetime import timedelta
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime, timezone, timedelta
+import json
 
 
 from app.constants import AnsiColor, String
 from app.enums import NotificationType, NotificationCreator, TransactionStatus, KYCStatus
 from app.model import (
     DeletedUserTable, NotificationTable, SettingsTable,
-    AdminTable, UserTable, KYCTable
+    AdminTable, UserTable, KYCTable, AppConfigTable
 )
 from app.model.sessions_table import SessionTable
 from app.schema import GlobalResponse, KYCUpdateRequest, AdminNotyfyResuest
@@ -594,6 +595,110 @@ class AdminAccessServices(UserVerificationService):
                 }
             )
 
+        except HTTPException:
+            raise
+        
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def get_app_config(self) -> GlobalResponse:
+        try:
+            configs = self.db.query(AppConfigTable).all()
+            
+            config_dict = {}
+            for config in configs:
+                config_dict[config.key] = config.value
+            
+            return GlobalResponse(
+                status_code=200,
+                success=True,
+                action="",
+                message="App configuration retrieved successfully",
+                data=config_dict
+            )
+        
+        except HTTPException:
+            raise
+        
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def get_config_by_key(self, key: str) -> GlobalResponse:
+        try:
+            config = self.db.query(AppConfigTable).filter(
+                AppConfigTable.key == key
+            ).first()
+            
+            if not config:
+                raise HTTPException(status_code=404, detail="Configuration not found")
+            
+            return GlobalResponse(
+                status_code=200,
+                success=True,
+                action="",
+                message="Configuration retrieved successfully",
+                data={"key": config.key, "value": config.value}
+            )
+        
+        except HTTPException:
+            raise
+        
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def update_app_config(self, payload: AppConfigRequest) -> GlobalResponse:
+        try:
+            admin_id = self.verify_authorization(self.authorization)
+            
+            current_admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == admin_id
+            ).first()
+            
+            if not current_admin:
+                raise HTTPException(status_code=401, detail="Unauthorized")
+            
+            if current_admin.role != AdminRole.SUPER_ADMIN:
+                raise HTTPException(status_code=403, detail="Only super admins can update configurations")
+            
+            config_keys = ["service_enabled", "sms_enabled", "maintenance_mode"]
+            updated_configs = []
+            
+            for key in config_keys:
+                if getattr(payload, key) is not None:
+                    value = getattr(payload, key)
+                    
+                    config = self.db.query(AppConfigTable).filter(
+                        AppConfigTable.key == key
+                    ).first()
+                    
+                    if config:
+                        config.value = json.dumps({"enabled": value})
+                        config.updated_at = datetime.now(timezone.utc)
+                    else:
+                        config = AppConfigTable(
+                            key=key,
+                            value=json.dumps({"enabled": value})
+                        )
+                        self.db.add(config)
+                    
+                    updated_configs.append(key)
+            
+            self.db.commit()
+            
+            return GlobalResponse(
+                status_code=200,
+                success=True,
+                action="",
+                message=f"Configuration updated successfully: {', '.join(updated_configs)}",
+                data={"updated_keys": updated_configs}
+            )
+        
         except HTTPException:
             raise
         

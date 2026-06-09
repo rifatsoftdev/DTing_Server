@@ -82,7 +82,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             # Current SQLite schema keeps one admin session row per admin_id.
             # Reuse it on repeated login instead of inserting a duplicate admin_id.
             session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == admin.admin_id
+                SessionTable.admin_id == admin.admin_id
             ).first()
             
             if session:
@@ -95,7 +95,8 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 session.logout_at = None
             else:
                 session = SessionTable(
-                    user_id=admin.admin_id,
+                    admin_id=admin.admin_id,
+                    owner_type="admin",
                     session_id=session_id,
                     device_uuid=device_uuid,
                     device_id=device_id,
@@ -305,7 +306,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
 
             # Verify refresh token hash against session
             session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == admin_id,
+                SessionTable.admin_id == admin_id,
                 SessionTable.is_login == True
             ).first()
 
@@ -617,7 +618,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             
             # Invalidate all sessions for this admin
             self.db.query(SessionTable).filter(
-                SessionTable.user_id == payload.admin_id,
+                SessionTable.admin_id == payload.admin_id,
                 SessionTable.is_login == True
             ).update({
                 "is_login": False,
@@ -658,13 +659,13 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 if super_admin_count <= 1:
                     raise HTTPException(status_code=400, detail="Cannot delete the last super admin")
             
-            # Soft delete - deactivate instead of actual deletion
+# Soft delete - deactivate instead of actual deletion
             admin.is_active = False
             admin.updated_at = datetime.now(timezone.utc)
             
             # Invalidate all sessions
             self.db.query(SessionTable).filter(
-                SessionTable.user_id == admin_id,
+                SessionTable.admin_id == admin_id,
                 SessionTable.is_login == True
             ).update({
                 "is_login": False,
@@ -696,9 +697,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             current_admin.password_hash = Hashing.create_hash(payload.new_password)
             current_admin.updated_at = datetime.now(timezone.utc)
             
-            # Invalidate all sessions except current
+# Invalidate all sessions except current
             self.db.query(SessionTable).filter(
-                SessionTable.user_id == current_admin.admin_id,
+                SessionTable.admin_id == current_admin.admin_id,
                 SessionTable.is_login == True
             ).update({
                 "is_login": False,

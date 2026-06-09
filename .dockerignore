@@ -1,2 +1,4 @@
 .env
 etc/
+alembic.ini
+alembic

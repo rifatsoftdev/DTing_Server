@@ -317,6 +317,25 @@ class AdminListItem(BaseModel):
 
 
 # ============================================================================
+# Server Config Schemas
+# ============================================================================
+
+class AppConfigRequest(BaseModel):
+    """Request schema for updating app configuration"""
+    service_enabled: Optional[bool] = None
+    sms_enabled: Optional[bool] = None
+    maintenance_mode: Optional[bool] = None
+
+class AppConfigResponse(BaseModel):
+    """Response schema for app configuration"""
+    key: str
+    value: dict
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
 # Global Response Wrapper
 # ============================================================================
 

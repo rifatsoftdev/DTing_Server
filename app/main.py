@@ -16,6 +16,7 @@ from app.middleware.auth_middleware import AuthMiddleware
 
 from admin.router.access_router import admin_access_router
 from admin.router.auth_router import admin_auth_router
+from admin.router.server_router import server_router
 
 from app.router.auth_router import auth_router
 from app.router.country_router import country_router
@@ -60,6 +61,8 @@ app.add_middleware(
     AuthMiddleware,
     public_paths=[
         "/country/counties",
+        "/admin/login",
+        "/admin/refresh-access-token",
     ],
     protected_prefixes=[
         "/bank",
@@ -261,6 +264,7 @@ async def favicon():
 # Include routers
 app.include_router(admin_access_router, prefix="/admin", tags=["Admin Management"])
 app.include_router(admin_auth_router, prefix="/admin", tags=["Admin Management"])
+app.include_router(server_router, prefix="/admin/config", tags=["Admin Configuration"])
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(country_router, prefix="/country", tags=["Countries"])

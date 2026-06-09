@@ -12,7 +12,10 @@ class SessionTable(Base):
     __tablename__ = "user_sessions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String, ForeignKey("user_list.user_id"), index=True)
+    user_id = Column(String, ForeignKey("user_list.user_id"), index=True, nullable=True)
+    admin_id = Column(String, ForeignKey("admin_list.admin_id"), index=True, nullable=True)
+    
+    owner_type = Column(String, nullable=True, default="user")
 
     session_id = Column(String, unique=True, index=True)  # public session id
 
@@ -40,3 +43,11 @@ class SessionTable(Base):
         "UserTable",
         back_populates="sessions"
     )
+
+    admin = relationship(
+        "AdminTable",
+        back_populates="sessions",
+        foreign_keys=[admin_id]
+    )
+
+

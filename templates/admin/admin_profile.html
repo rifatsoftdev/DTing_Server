@@ -1,0 +1,404 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'profile' %}
+
+{% block title %}Admin Profile | PocketPay{% endblock %}
+{% block page_title %}Admin Profile{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center p-4">
+                <img
+                    id="profileAvatarImg"
+                    src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+                    alt="Admin"
+                    class="rounded-circle img-thumbnail mb-3"
+                    width="140"
+                    height="140"
+                >
+                <h2 id="profileFullName" class="h4 fw-bold mb-1">Admin</h2>
+                <p id="profileRole" class="text-muted mb-3">Administrator</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <button class="btn btn-primary btn-sm" type="button" onclick="openEditProfileModal()">Edit Profile</button>
+                    <button class="btn btn-outline-primary btn-sm" type="button" onclick="openPasswordModal()">Security</button>
+                </div>
+            </div>
+            <div class="list-group list-group-flush">
+                <div class="list-group-item">
+                    <p class="text-muted small mb-1">Admin ID</p>
+                    <p id="profileAdminId" class="fw-semibold text-break mb-0">-</p>
+                </div>
+                <div class="list-group-item">
+                    <p class="text-muted small mb-1">Email</p>
+                    <p id="profileEmail" class="fw-semibold text-break mb-0">-</p>
+                </div>
+                <div class="list-group-item">
+                    <p class="text-muted small mb-1">Member Since</p>
+                    <p id="profileJoinedDate" class="fw-semibold mb-0">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="row g-0">
+                    <div class="col-12 col-md-4 border-end">
+                        <div class="nav flex-column nav-pills p-3" id="profileTabs" role="tablist" aria-orientation="vertical">
+                            <button class="nav-link active text-start" id="profile-about-tab" data-bs-toggle="pill" data-bs-target="#profile-about" type="button" role="tab" aria-controls="profile-about" aria-selected="true">
+                                About
+                            </button>
+                            <button class="nav-link text-start" id="profile-security-tab" data-bs-toggle="pill" data-bs-target="#profile-security" type="button" role="tab" aria-controls="profile-security" aria-selected="false">
+                                Security
+                            </button>
+                            <button class="nav-link text-start" id="profile-alerts-tab" data-bs-toggle="pill" data-bs-target="#profile-alerts" type="button" role="tab" aria-controls="profile-alerts" aria-selected="false">
+                                Alerts
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-md-8">
+                        <div class="tab-content p-4" id="profileTabsContent">
+                            <div class="tab-pane fade show active" id="profile-about" role="tabpanel" aria-labelledby="profile-about-tab" tabindex="0">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h3 class="h5 fw-bold mb-0">Account Information</h3>
+                                    <span id="accountStatus" class="badge text-bg-secondary">Loading</span>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-12 col-lg-6">
+                                        <div class="border rounded p-3 h-100">
+                                            <p class="text-muted small mb-1">Full Name</p>
+                                            <p id="infoFullName" class="fw-semibold mb-0">-</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-6">
+                                        <div class="border rounded p-3 h-100">
+                                            <p class="text-muted small mb-1">Email Address</p>
+                                            <p id="infoEmail" class="fw-semibold text-break mb-0">-</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-6">
+                                        <div class="border rounded p-3 h-100">
+                                            <p class="text-muted small mb-1">Role</p>
+                                            <p id="displayRole" class="fw-semibold mb-0">-</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-12 col-lg-6">
+                                        <div class="border rounded p-3 h-100">
+                                            <p class="text-muted small mb-1">Last Login</p>
+                                            <p id="lastLoginAt" class="fw-semibold mb-0">-</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <h4 class="h6 fw-bold mt-4 mb-3">Permissions</h4>
+                                <div id="permissionsGrid" class="d-flex flex-wrap gap-2">
+                                    <span class="text-muted">Loading...</span>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="profile-security" role="tabpanel" aria-labelledby="profile-security-tab" tabindex="0">
+                                <h3 class="h5 fw-bold mb-4">Security</h3>
+                                <div class="list-group">
+                                    <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                                        <div>
+                                            <p class="fw-semibold mb-1">Password</p>
+                                            <p class="text-muted small mb-0">Change your admin account password.</p>
+                                        </div>
+                                        <button class="btn btn-outline-primary btn-sm" type="button" onclick="openPasswordModal()">Change</button>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                                        <div>
+                                            <p class="fw-semibold mb-1">Two-Factor Authentication</p>
+                                            <p class="text-muted small mb-0">Status from your admin account record.</p>
+                                        </div>
+                                        <span id="twoFactorStatus" class="badge text-bg-secondary">Unknown</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                                        <div>
+                                            <p class="fw-semibold mb-1">Active Status</p>
+                                            <p class="text-muted small mb-0">Whether this admin account can access the panel.</p>
+                                        </div>
+                                        <span id="securityAccountStatus" class="badge text-bg-secondary">Unknown</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="tab-pane fade" id="profile-alerts" role="tabpanel" aria-labelledby="profile-alerts-tab" tabindex="0">
+                                <h3 class="h5 fw-bold mb-4">Alerts</h3>
+                                <div class="list-group">
+                                    <label class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                                        <span>
+                                            <span class="fw-semibold d-block">System Email Alerts</span>
+                                            <span class="text-muted small">Receive important system notices.</span>
+                                        </span>
+                                        <input class="form-check-input" type="checkbox" id="emailNotifToggle" checked onchange="toggleNotification('email')">
+                                    </label>
+                                    <label class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                                        <span>
+                                            <span class="fw-semibold d-block">Browser Push Notifications</span>
+                                            <span class="text-muted small">Show admin panel notifications in browser.</span>
+                                        </span>
+                                        <input class="form-check-input" type="checkbox" id="pushNotifToggle" checked onchange="toggleNotification('push')">
+                                    </label>
+                                    <label class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                                        <span>
+                                            <span class="fw-semibold d-block">Critical Security Notifications</span>
+                                            <span class="text-muted small">Keep security related alerts enabled.</span>
+                                        </span>
+                                        <input class="form-check-input" type="checkbox" id="securityAlertsToggle" checked onchange="toggleNotification('security')">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="editProfileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="editProfileForm" onsubmit="updateProfile(event)">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Edit Profile</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="editFullName">Full Name</label>
+                        <input class="form-control" type="text" id="editFullName" required minlength="2" maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="editEmail">Email Address</label>
+                        <input class="form-control" type="email" id="editEmail">
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label" for="editProfileImageUrl">Profile Image URL</label>
+                        <input class="form-control" type="url" id="editProfileImageUrl" placeholder="https://example.com/avatar.png">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="changePasswordForm" onsubmit="changePassword(event)">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Change Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="currentPwd">Current Password</label>
+                        <input class="form-control" type="password" id="currentPwd" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="newPwd">New Password</label>
+                        <input class="form-control" type="password" id="newPwd" required minlength="8">
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label" for="confirmPwd">Confirm New Password</label>
+                        <input class="form-control" type="password" id="confirmPwd" required minlength="8">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Change Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentAdmin = null;
+    let editProfileModal = null;
+    let changePasswordModal = null;
+
+    function formatDate(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "-";
+        return date.toLocaleDateString();
+    }
+
+    function formatRole(value) {
+        return String(value || "admin").replace(/_/g, " ").replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    function setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value || "-";
+    }
+
+    function renderPermissions(permissions) {
+        const container = document.getElementById("permissionsGrid");
+        container.innerHTML = "";
+
+        if (!permissions || !permissions.length) {
+            container.innerHTML = '<span class="text-muted">No permissions assigned</span>';
+            return;
+        }
+
+        permissions.forEach(permission => {
+            const badge = document.createElement("span");
+            badge.className = "badge text-bg-primary";
+            badge.textContent = formatRole(permission);
+            container.appendChild(badge);
+        });
+    }
+
+    function renderProfile(admin) {
+        currentAdmin = admin;
+        const avatarUrl = admin.profile_image_url || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png";
+        const isActive = Boolean(admin.is_active);
+
+        document.getElementById("profileAvatarImg").src = avatarUrl;
+        setText("profileFullName", admin.full_name || "Admin");
+        setText("profileRole", formatRole(admin.role));
+        setText("profileAdminId", admin.admin_id);
+        setText("profileEmail", admin.email);
+        setText("profileJoinedDate", formatDate(admin.created_at));
+        setText("infoFullName", admin.full_name);
+        setText("infoEmail", admin.email);
+        setText("displayRole", formatRole(admin.role));
+        setText("lastLoginAt", admin.last_login_at ? new Date(admin.last_login_at).toLocaleString() : "-");
+
+        document.getElementById("accountStatus").className = `badge ${isActive ? "text-bg-success" : "text-bg-danger"}`;
+        document.getElementById("accountStatus").textContent = isActive ? "Active" : "Inactive";
+        document.getElementById("securityAccountStatus").className = `badge ${isActive ? "text-bg-success" : "text-bg-danger"}`;
+        document.getElementById("securityAccountStatus").textContent = isActive ? "Active" : "Inactive";
+        document.getElementById("twoFactorStatus").className = `badge ${admin.totp_enabled ? "text-bg-success" : "text-bg-secondary"}`;
+        document.getElementById("twoFactorStatus").textContent = admin.totp_enabled ? "Enabled" : "Disabled";
+
+        const headerName = document.getElementById("headerAdminName");
+        if (headerName) headerName.textContent = admin.full_name || "Admin";
+        const headerAvatar = document.querySelector("#headerAdminAvatar img");
+        if (headerAvatar) headerAvatar.src = avatarUrl;
+
+        renderPermissions(admin.permissions || []);
+    }
+
+    async function loadProfile() {
+        try {
+            const response = await fetch("/admin/profile-data", {
+                method: "GET",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include"
+            });
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.message || "Failed to load profile");
+            }
+
+            renderProfile(result.data);
+        } catch (err) {
+            showToast(err.message || "Failed to load profile", "error");
+        }
+    }
+
+    function openEditProfileModal() {
+        document.getElementById("editFullName").value = currentAdmin?.full_name || "";
+        document.getElementById("editEmail").value = currentAdmin?.email || "";
+        document.getElementById("editProfileImageUrl").value = currentAdmin?.profile_image_url || "";
+        editProfileModal.show();
+    }
+
+    function openPasswordModal() {
+        document.getElementById("changePasswordForm").reset();
+        changePasswordModal.show();
+    }
+
+    async function updateProfile(event) {
+        event.preventDefault();
+
+        try {
+            const response = await fetch("/admin/profile", {
+                method: "PUT",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    full_name: document.getElementById("editFullName").value.trim(),
+                    email: document.getElementById("editEmail").value.trim() || null,
+                    profile_image_url: document.getElementById("editProfileImageUrl").value.trim() || null
+                })
+            });
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.message || "Failed to update profile");
+            }
+
+            editProfileModal.hide();
+            showToast(result.message || "Profile updated successfully", "success");
+            await loadProfile();
+        } catch (err) {
+            showToast(err.message || "Failed to update profile", "error");
+        }
+    }
+
+    async function changePassword(event) {
+        event.preventDefault();
+
+        const currentPassword = document.getElementById("currentPwd").value;
+        const newPassword = document.getElementById("newPwd").value;
+        const confirmPassword = document.getElementById("confirmPwd").value;
+
+        if (newPassword !== confirmPassword) {
+            showToast("Passwords do not match", "error");
+            return;
+        }
+
+        try {
+            const response = await fetch("/admin/change-password", {
+                method: "POST",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword
+                })
+            });
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.message || "Failed to change password");
+            }
+
+            changePasswordModal.hide();
+            showToast(result.message || "Password changed successfully", "success");
+        } catch (err) {
+            showToast(err.message || "Failed to change password", "error");
+        }
+    }
+
+    function toggleNotification(type) {
+        const label = formatRole(type);
+        showToast(`${label} notifications updated`, "success");
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        editProfileModal = new bootstrap.Modal(document.getElementById("editProfileModal"));
+        changePasswordModal = new bootstrap.Modal(document.getElementById("changePasswordModal"));
+        loadProfile();
+    });
+</script>
+{% endblock %}

@@ -255,11 +255,11 @@ class UserVerificationService(TokenGenerators):
                 )
 
             # fetch session
-            session = db_session.query(AdminSessionTable).filter(
-                AdminSessionTable.admin_id == user_id,
-                AdminSessionTable.device_id == device_id,
-                AdminSessionTable.device_uuid == device_uuid,
-                AdminSessionTable.is_login == True
+            session = db_session.query(SessionTable).filter(
+                SessionTable.admin_id == user_id,
+                SessionTable.device_id == device_id,
+                SessionTable.device_uuid == device_uuid,
+                SessionTable.is_login == True
             ).first()
 
             if not session:

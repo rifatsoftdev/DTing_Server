@@ -12,7 +12,13 @@ if ENV.DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False}
     )
 else:
-    engine = create_engine(ENV.DATABASE_URL)
+    engine = create_engine(
+        ENV.DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_size=20,
+        max_overflow=10
+    )
 
 
 SessionLocal = sessionmaker(

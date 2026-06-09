@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, Enum
+from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
 
 from app.core.database import Base
@@ -145,3 +146,11 @@ class AdminTable(Base):
     
     created_at = Column(DateTime(timezone=True), default=utc6dhaka)
     updated_at = Column(DateTime(timezone=True), onupdate=utc6dhaka)
+
+    # Session relationship for one-to-many mapping between admin and sessions
+    sessions = relationship(
+        "SessionTable",
+        foreign_keys="SessionTable.admin_id",
+        back_populates="admin",
+        cascade="all, delete-orphan"
+    )

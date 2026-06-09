@@ -18,6 +18,8 @@ class ENV:
     APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:8000")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
+    PRIVATE_KEY_PATH: str = os.getenv("PRIVATE_KEY_PATH")
+    PUBLIC_KEY_PATH: str = os.getenv("PUBLIC_KEY_PATH")
 
     # Service Charge configuration
     SERVICE_CHARGE: float = float(os.getenv("SERVICE_CHARGE", "1.0"))

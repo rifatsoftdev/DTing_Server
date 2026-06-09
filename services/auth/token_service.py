@@ -11,10 +11,10 @@ from app.utils import Hashing
 
 class TokenGenerators:
     def __init__(self):
-        with open("etc/secrets/private.pem", "r") as f:
+        with open(ENV.PRIVATE_KEY_PATH, "r") as f:
             self.PRIVATE_KEY = f.read()
 
-        with open("etc/secrets/public.pem", "r") as f:
+        with open(ENV.PUBLIC_KEY_PATH, "r") as f:
             self.PUBLIC_KEY = f.read()
 
         self.ALGORITHM = "RS256"

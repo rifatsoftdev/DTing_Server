@@ -360,17 +360,33 @@ async def admin_delete_account_requests(request: Request):
 
 # ==============================================================================
 
-# @template_router.get("/admin/profile")
-# async def admin_profile(request: Request):
-#     # Check if admin is logged in via cookie or token
-#     access_token = request.cookies.get("admin_access_token")
+@template_router.get("/admin/settings")
+async def admin_profile(request: Request):
+    # Check if admin is logged in via cookie or token
+    access_token = request.cookies.get("admin_access_token")
 
-#     if not access_token:
-#         # Redirect to login page if not authenticated
-#         return RedirectResponse("/admin/login")
+    if not access_token:
+        # Redirect to login page if not authenticated
+        return RedirectResponse("/admin/login")
 
-#     # Render profile template
-#     return templates.TemplateResponse("profile.html", {"request": request})
+    # Render profile template
+    return templates.TemplateResponse("admin/settings_manager.html", {"request": request})
+
+
+
+# ==============================================================================
+
+@template_router.get("/admin/profile")
+async def admin_profile(request: Request):
+    # Check if admin is logged in via cookie or token
+    access_token = request.cookies.get("admin_access_token")
+
+    if not access_token:
+        # Redirect to login page if not authenticated
+        return RedirectResponse("/admin/login")
+
+    # Render profile template
+    return templates.TemplateResponse("admin/admin_profile.html", {"request": request})
 
 
 

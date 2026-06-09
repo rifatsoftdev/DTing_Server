@@ -223,3 +223,5 @@ localhost+2-key.pem
 localhost+2.pem
 database.db
 etc/
+alembic.ini
+alembic
