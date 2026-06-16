@@ -84,7 +84,11 @@ class ENV:
     DEFAULT_USER_PASSWORD: str = os.getenv("DEFAULT_USER_PASSWORD", "User@123")
     DEFAULT_USER_NAME: str = os.getenv("DEFAULT_USER_NAME", "DTing")
 
+    # Other Server URL
+    VIRELIX_SERVER_URL: str = os.getenv("VIRELIX_SERVER_URL", "")
+    DTUBE_SERVER_URL: str = os.getenv("DTUBE_SERVER_URL", "")
     
+
 # if __name__ == "__main__":
 #     print(ENV.EMAIL_USE_TLS)
 #     print(ENV.EMAIL_USE_SSL)

@@ -39,6 +39,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
         )
         TokenGenerators.__init__(self)
     
+
     def admin_login(
         self,
         payload: AdminLoginRequest
@@ -71,7 +72,10 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             
             # Verify password
             if not Hashing.verify_password(password, admin.password_hash):
-                raise HTTPException(status_code=401, detail="Invalid password")
+                raise HTTPException(
+                    status_code=401, 
+                    detail="Invalid password"
+                )
 
             # Get permissions based on role
             permissions = ROLE_PERMISSIONS.get(AdminRole(admin.role), [])
@@ -189,6 +193,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 detail=String.SERVER_ERROR
             )
 
+
     def admin_logout(
         self
     ) -> GlobalResponse:
@@ -224,9 +229,13 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             raise
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
             
+
     def get_admin_profile(
         self
     ) -> GlobalResponse:
@@ -268,7 +277,11 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
 
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
+
 
     def refresh_admin_token(
         self,
@@ -280,29 +293,50 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             device_uuid = payload.device_uuid
 
             if not refresh_token:
-                raise HTTPException(status_code=400, detail="Refresh token is required")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Refresh token is required"
+                )
 
             # Decode the refresh token
             payload = self._decode_token(refresh_token)
             
             if not payload:
-                raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid or expired refresh token"
+                )
 
             # Check token type
             if payload.get("type") != "refresh":
-                raise HTTPException(status_code=401, detail="Invalid token type")
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid token type"
+                )
 
             admin_id = payload.get("admin_id")
             if not admin_id:
-                raise HTTPException(status_code=401, detail="Invalid token payload")
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid token payload"
+                )
 
             # Find admin
-            admin = self.db.query(AdminTable).filter(AdminTable.admin_id == admin_id).first()
+            admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == admin_id
+            ).first()
+
             if not admin:
-                raise HTTPException(status_code=404, detail="Admin not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail="Admin not found"
+                )
 
             if not admin.is_active:
-                raise HTTPException(status_code=403, detail="Admin account is inactive")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Admin account is inactive"
+                )
 
             # Verify refresh token hash against session
             session = self.db.query(SessionTable).filter(
@@ -311,33 +345,47 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             ).first()
 
             if not session:
-                raise HTTPException(status_code=401, detail="Session not found or expired")
+                raise HTTPException(
+                    status_code=401,
+                    detail="Session not found or expired"
+                )
 
             # Verify refresh token hash
             if not Hashing.verify_hash(refresh_token, session.refresh_token_hash):
-                raise HTTPException(status_code=401, detail="Invalid refresh token")
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid refresh token"
+                )
 
             # Get permissions based on role
             permissions = ROLE_PERMISSIONS.get(AdminRole(admin.role), [])
 
             # Generate new tokens
-            access_token = self._create_access_token(data={
-                "admin_id": admin.admin_id,
-                "email": admin.email,
-                "role": admin.role,
-                "permissions": permissions,
-                "device_id": device_id or payload.get("device_id"),
-                "device_uuid": device_uuid or payload.get("device_uuid")
-            })
+            access_token: str = self._create_token(
+                token_type="access",
+                expire_min=ENV.ACCESS_EXPIRE,
+                data={
+                    "admin_id": admin.admin_id,
+                    "email": admin.email,
+                    "role": admin.role,
+                    "permissions": permissions,
+                    "device_id": device_id or payload.get("device_id"),
+                    "device_uuid": device_uuid or payload.get("device_uuid")
+                }
+            )
 
-            new_refresh_token = self._create_refresh_token(data={
-                "admin_id": admin.admin_id,
-                "email": admin.email,
-                "role": admin.role,
-                "permissions": permissions,
-                "device_id": device_id or payload.get("device_id"),
-                "device_uuid": device_uuid or payload.get("device_uuid")
-            })
+            new_refresh_token: str = self._create_token(
+                token_type="refresh",
+                expire_day=ENV.REFRESH_EXPIRE,
+                data={
+                    "admin_id": admin.admin_id,
+                    "email": admin.email,
+                    "role": admin.role,
+                    "permissions": permissions,
+                    "device_id": device_id or payload.get("device_id"),
+                    "device_uuid": device_uuid or payload.get("device_uuid")
+                }
+            )
 
             # Update session with new token hashes
             session.access_token_hash = Hashing.create_hash(access_token)
@@ -378,8 +426,12 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             raise
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
+
 
     def update_own_profile(
         self,
@@ -392,12 +444,21 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             ).first()
 
             if not current_admin:
-                raise HTTPException(status_code=404, detail="Admin not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail="Admin not found"
+                )
             
             if payload.email and payload.email != current_admin.email:
-                existing_admin = self.db.query(AdminTable).filter(AdminTable.email == payload.email).first()
+                existing_admin = self.db.query(AdminTable).filter(
+                    AdminTable.email == payload.email
+                ).first()
+
                 if existing_admin:
-                    raise HTTPException(status_code=409, detail="Admin with this email already exists")
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Admin with this email already exists"
+                    )
                 current_admin.email = payload.email
 
             if payload.full_name is not None:
@@ -428,18 +489,28 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             raise
 
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
+
 
     def create_admin(self, payload: AdminCreateRequest) -> GlobalResponse:
         try:
             # Check if email already exists
-            existing_admin = self.db.query(AdminTable).filter(AdminTable.email == payload.email).first()
+            existing_admin = self.db.query(AdminTable).filter(
+                AdminTable.email == payload.email
+            ).first()
+
             if existing_admin:
-                raise HTTPException(status_code=409, detail="Admin with this email already exists")
+                raise HTTPException(
+                    status_code=409,
+                    detail="Admin with this email already exists"
+                )
             
             # Create new admin
-            admin_id = Generators.generate_user_id()  # Using same generator for admin IDs
+            admin_id = Generators.generate_id("user")  # Using same generator for admin IDs
             password_hash = Hashing.create_hash(payload.password)
             
             new_admin = AdminTable(
@@ -489,8 +560,12 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             raise
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
+
 
     def list_admins(
         self,
@@ -554,25 +629,54 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             raise
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
+
 
     def update_admin(self, admin_id: str, payload: AdminUpdateRequest) -> GlobalResponse:
         try:
-            # Cannot modify yourself
-            if admin_id == current_admin.admin_id:
-                raise HTTPException(status_code=400, detail="Cannot modify your own account")
-            
-            admin = self.db.query(AdminTable).filter(AdminTable.admin_id == admin_id).first()
+            admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == admin_id
+            ).first()
+
             if not admin:
-                raise HTTPException(status_code=404, detail="Admin not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail="Admin not found"
+                )
+            
+            current_admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == self.verify_authorization(self.authorization)
+            ).first()
+            
+            if not current_admin:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid Admin"
+                )
+            
+            if admin_id == current_admin.admin_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot modify your own account"
+                )
             
             # Prevent changing the last super_admin
             if admin.is_super_admin and admin.role == AdminRole.SUPER_ADMIN.value:
                 if payload.role and payload.role != AdminRoleEnum.SUPER_ADMIN:
-                    raise HTTPException(status_code=400, detail="Cannot change role of the last super admin")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot change role of the last super admin"
+                    )
+                
                 if payload.is_active is False:
-                    raise HTTPException(status_code=400, detail="Cannot deactivate the last super admin")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot deactivate the last super admin"
+                    )
             
             # Update fields
             if payload.full_name is not None:
@@ -589,6 +693,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             self.db.refresh(admin)
             
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
                 message="Admin updated successfully",
                 data={
@@ -603,14 +708,24 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             raise
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
+
 
     def reset_admin_password(self, payload: AdminPasswordUpdateRequest) -> GlobalResponse:
         try:
-            admin = self.db.query(AdminTable).filter(AdminTable.admin_id == payload.admin_id).first()
+            admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == payload.admin_id
+            ).first()
+
             if not admin:
-                raise HTTPException(status_code=404, detail="Admin not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail="Admin not found"
+                )
             
             # Update password
             admin.password_hash = Hashing.create_hash(payload.new_password)
@@ -628,6 +743,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             self.db.commit()
             
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
                 message="Password reset successfully. Admin will need to login again.",
                 data={}
@@ -638,17 +754,39 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
 
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
+
 
     def delete_admin(self, admin_id: str)-> GlobalResponse:
         try:
-            # Cannot delete yourself
-            if admin_id == current_admin.admin_id:
-                raise HTTPException(status_code=400, detail="Cannot delete your own account")
-            
-            admin = self.db.query(AdminTable).filter(AdminTable.admin_id == admin_id).first()
+            admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == admin_id
+            ).first()
+
             if not admin:
-                raise HTTPException(status_code=404, detail="Admin not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail="Admin not found"
+                )
+            
+            current_admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == self.verify_authorization(self.authorization)
+            ).first()
+            
+            if not current_admin:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid Admin"
+                )
+            
+            if admin_id == current_admin.admin_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot delete your own account"
+                )
             
             # Prevent deleting the last super_admin
             if admin.is_super_admin:
@@ -656,10 +794,14 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                     AdminTable.is_super_admin == True,
                     AdminTable.is_active == True
                 ).count()
+
                 if super_admin_count <= 1:
-                    raise HTTPException(status_code=400, detail="Cannot delete the last super admin")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot delete the last super admin"
+                    )
             
-# Soft delete - deactivate instead of actual deletion
+            # Soft delete - deactivate instead of actual deletion
             admin.is_active = False
             admin.updated_at = datetime.now(timezone.utc)
             
@@ -675,6 +817,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             self.db.commit()
             
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
                 message="Admin deactivated successfully",
                 data={}
@@ -684,20 +827,36 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             raise
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error"
+            )
 
-    def change_own_password(self, payload: AdminPasswordUpdateRequest) -> GlobalResponse:
+
+    def change_own_password(self, payload: AdminChangeOwnPasswordRequest) -> GlobalResponse:
         try:
-            # Verify current password
-            if not Hashing.verify_password(payload.current_password, current_admin.password_hash):
-                raise HTTPException(status_code=401, detail="Current password is incorrect")
+            admin_id: str = self.verify_authorization(self.authorization)
+
+            current_admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == admin_id
+            ).first()
+
+            if not current_admin:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid Admin"
+                )
             
-            # Update password
+            if not Hashing.verify_password(payload.current_password, current_admin.password_hash):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Current password is incorrect"
+                )
+            
             current_admin.password_hash = Hashing.create_hash(payload.new_password)
             current_admin.updated_at = datetime.now(timezone.utc)
             
-# Invalidate all sessions except current
             self.db.query(SessionTable).filter(
                 SessionTable.admin_id == current_admin.admin_id,
                 SessionTable.is_login == True
@@ -709,7 +868,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             self.db.commit()
             
             return GlobalResponse(
+                status_code=status.HTTP_200_OK,
                 success=True,
+                action="logout",
                 message="Password changed successfully. Please login again.",
                 data={}
             )
@@ -718,8 +879,11 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             raise
         
         except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-            raise HTTPException(status_code=500, detail="Internal server error")
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal server error"
+            )
 
 
 

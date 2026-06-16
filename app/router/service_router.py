@@ -1,11 +1,14 @@
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, Header, Request, UploadFile, status
 from sqlalchemy.orm import Session
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional,List
 from datetime import date
 
 from app.core.database import get_db
 from app.core.rate_limit import settings_rate_limit
 
+from app.model import UserTable, UserServicesTable
 from app.schema import GlobalResponse
 from app.schema import ServiceAddRequest, ServiceUpdateRequest, ServiceDeleteRequest
 from services import UserServices
@@ -17,12 +20,13 @@ from services.auth.user_verification import UserVerificationService
 service_router =  APIRouter()
 
 
-services: list = [
-    {"service_name": "DTing", "service_slug": "dting"},
-    {"service_name": "DTube", "service_slug": "dtube"},
-    {"service_name": "PocketPay", "service_slug": "pocketpay"},
-    {"service_name": "DTing Cloud", "service_slug": "dting-cloud"},
-]
+
+import json
+
+with open("app/json/services.json", "r") as f:
+    services_data = json.load(f)
+
+services = services_data["services"]
 
 
 @service_router.get("/get-services", response_model=GlobalResponse)
@@ -44,32 +48,29 @@ def get_services(
         authorization=authorization
     )
 
-    user_id = user_verification_service.verify_authorization(authorization)
+    user_id: str = user_verification_service.verify_authorization(authorization)
 
-    available_service_slugs = [service["service_slug"] for service in services]
-    current_services = UserServices.get_user_services(db, user_id)
-    current_by_slug = {item["service_slug"]: item for item in current_services}
+    user: UserTable = db.query(UserTable).filter(
+        UserTable.user_id == user_id
+    ).first()
 
-    service_list = []
-    for service in services:
-        existing = current_by_slug.get(service["service_slug"])
-        service_list.append({
-            "service_name": service["service_name"],
-            "service_slug": service["service_slug"],
-            "enabled": existing is not None,
-            "status": existing["status"] if existing else None,
-            "service_details": existing["service_details"] if existing else None,
-            "id": existing["id"] if existing else None,
-            "user_id": user_id,
+    user_services: List[UserServicesTable] = user.user_services
+
+    active_services = []
+    available_services = []
+
+    # active services (user DB)
+    for service in user_services:
+        active_services.append({
+            "service_name": service.service_name,
+            "service_slug": service.service_slug,
+            "logo_url": service.logo_url
         })
 
-    extra_services = [
-        item for slug, item in current_by_slug.items()
-        if slug not in available_service_slugs
-    ]
-    service_list.extend(extra_services)
-
-    active_services = [item for item in service_list if item.get("enabled")]
+    # available services (JSON)
+    for key, service in services.items():
+        if not any(s["service_slug"] == service["service_slug"] for s in active_services):
+            available_services.append(service)
 
     return GlobalResponse(
         status_code=status.HTTP_200_OK,
@@ -78,7 +79,7 @@ def get_services(
         message="User services retrieved successfully",
         data={
             "active_services": active_services,
-            "included_services": available_service_slugs
+            "available_service": available_services
         },
         next_step={}
     )
@@ -94,13 +95,20 @@ def add_service(
     settings_rate_limit(request)
 
     if not user_id:
-        return GlobalResponse(success=False, message="User ID is required in header", data={})
+        return GlobalResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            success=False,
+            message="User ID is required in header",
+            data={}
+        )
 
     service_slug = payload.service_slug.strip()
+
     service_name = payload.service_name or next(
         (service["service_name"] for service in services if service["service_slug"] == service_slug),
         " ".join(part.capitalize() for part in service_slug.split("-"))
     )
+
     created = UserServices.add_user_service(
         db=db,
         user_id=user_id,
@@ -130,7 +138,11 @@ def update_service(
     settings_rate_limit(request)
 
     if not user_id:
-        return GlobalResponse(success=False, message="User ID is required in header", data={})
+        return GlobalResponse(
+            success=False,
+            message="User ID is required in header",
+            data={}
+        )
 
     updated = UserServices.update_user_service(
         db=db,

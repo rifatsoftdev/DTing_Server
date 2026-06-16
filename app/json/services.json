@@ -1,0 +1,29 @@
+{
+    "services": {
+        "dting": {
+            "service_name": "DTing",
+            "service_slug": "dting",
+            "logo_url": "https://res.cloudinary.com/dgh76k5vn/image/upload/v1780333288/logo_fi8rjp.png"
+        },
+        "dtube": {
+            "service_name": "DTube",
+            "service_slug": "dtube",
+            "logo_url": "https://res.cloudinary.com/dgh76k5vn/image/upload/v1781589793/DTudbe_elbmqf.png"
+        },
+        "pocketpay": {
+            "service_name": "PocketPay",
+            "service_slug": "pocketpay",
+            "logo_url": "https://res.cloudinary.com/dgh76k5vn/image/upload/v1769602666/app_logo_ibnykm.png"
+        },
+        "dting-cloud": {
+            "service_name": "DTing Cloud",
+            "service_slug": "dting-cloud",
+            "logo_url": "https://res.cloudinary.com/dgh76k5vn/image/upload/v1781590447/ChatGPT_Image_Jun_13_2026_04_40_53_PM_hgirlc.png"
+        },
+        "virelix": {
+            "service_name": "Virelix",
+            "service_slug": "virelix",
+            "logo_url": "https://res.cloudinary.com/dgh76k5vn/image/upload/v1781590414/virelix_ppbxf1.png"
+        }
+    }
+}

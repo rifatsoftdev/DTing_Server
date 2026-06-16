@@ -80,6 +80,12 @@ class AdminPasswordUpdateRequest(BaseModel):
     new_password: str = Field(..., min_length=8, description="Minimum 8 characters")
 
 
+class AdminChangeOwnPasswordRequest(BaseModel):
+    """Request schema for admin changing their own password"""
+    current_password: str = Field(..., min_length=8, description="Current password")
+    new_password: str = Field(..., min_length=8, description="Minimum 8 characters")
+
+
 class AdminFilterRequest(BaseModel):
     """Request schema for filtering admin list"""
     search: Optional[str] = None

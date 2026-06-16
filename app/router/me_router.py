@@ -163,7 +163,6 @@ async def update_profile(
     db: Session = Depends(get_db),
 
     user_id: str = Form(...),
-    access_token: str = Form(...),
     device_id: str = Form(...),
     device_uuid: str = Form(...),
 
@@ -185,7 +184,6 @@ async def update_profile(
 
     return userServices.update_profile(
         user_id=user_id,
-        access_token=access_token,
         device_id=device_id,
         device_uuid=device_uuid,
 

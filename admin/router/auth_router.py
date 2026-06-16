@@ -166,7 +166,7 @@ async def list_admins(
         authorization=authorization
     )
 
-    return adminManagementServices.update_own_profile(
+    return adminManagementServices.list_admins(
         page=page,
         limit=limit,
         role=role,
@@ -182,6 +182,7 @@ async def list_admins(
 @admin_auth_router.put("/{admin_id}", response_model=GlobalResponse)
 async def update_admin(
     admin_id: str,
+    payload: AdminUpdateRequest,
     request: Request,
     background_tasks: BackgroundTasks,
     authorization: str = Header(None),
@@ -194,7 +195,7 @@ async def update_admin(
         authorization=authorization
     )
 
-    return adminManagementServices.update_admin(admin_id=admin_id)
+    return adminManagementServices.update_admin(admin_id=admin_id, payload=payload)
 
 
 
@@ -249,7 +250,7 @@ async def delete_admin(
 
 @admin_auth_router.post("/change-password", response_model=GlobalResponse)
 async def change_own_password(
-    payload: AdminPasswordUpdateRequest,
+    payload: AdminChangeOwnPasswordRequest,
     request: Request,
     background_tasks: BackgroundTasks,
     authorization: str = Header(None),

@@ -842,7 +842,6 @@ class UserServices:
     def update_profile(
         self,
         user_id: str,
-        access_token: str,
         device_id: str,
         device_uuid: str,
         full_name: Optional[str] = None,
@@ -863,6 +862,7 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
+            access_token: str = user_verification_service.verify_authorization(self.authorization)
 
             user = user_verification_service.verify_user(
                 user_id=user_id,
