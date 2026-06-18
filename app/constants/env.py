@@ -36,8 +36,8 @@ class ENV:
     EMAIL_USE_SSL: bool = _get_bool("EMAIL_USE_SSL", False)
 
     # Twilio configuration
-    ACCOUNT_SID: str = os.getenv("ACCOUNT_SID", "")
-    AUTH_TOKEN: str = os.getenv("AUTH_TOKEN", "")
+    TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
+    TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     TWILIO_PHONE_NUMBER: str = os.getenv("TWILIO_PHONE_NUMBER", "")
 
     # Cloudinary configuration

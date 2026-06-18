@@ -48,10 +48,10 @@ def get_services(
         authorization=authorization
     )
 
-    user_id: str = user_verification_service.verify_authorization(authorization)
+    user: UserTable = user_verification_service.verify_user_authorization()
 
     user: UserTable = db.query(UserTable).filter(
-        UserTable.user_id == user_id
+        UserTable.user_id == user.user_id
     ).first()
 
     user_services: List[UserServicesTable] = user.user_services

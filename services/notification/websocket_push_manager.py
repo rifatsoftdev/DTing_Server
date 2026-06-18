@@ -8,6 +8,7 @@ from redis.exceptions import RedisError
 
 from app.constants import ENV, AnsiColor
 from app.core.rate_limit import _get_redis_client
+from app.model import UserTable
 from services.auth.user_verification import UserVerificationService
 
 
@@ -128,28 +129,22 @@ class NotifyWebSocket:
 
 
     async def notify_ws(self, websocket: WebSocket, user_id: str):
-        authorization = websocket.headers.get("authorization") or websocket.headers.get("Authorization")
-        verifier = UserVerificationService()
-
-        try:
-            verified_user_id = verifier.verify_authorization(authorization=authorization)
-
-            if verified_user_id != user_id:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Authorization user mismatch"
-                )
-            
-        except HTTPException as exc:
-            await websocket.close(code=1008)
-            print(f"{AnsiColor.RED}WARN{AnsiColor.RESET}: WebSocket auth failed for {user_id}: {exc.detail}")
-            return
-
         await websocket.accept()
+        
+        userVerificationService = UserVerificationService(
+            db=self.db,
+            background_tasks=self.background_tasks,
+            request=self.request,
+            authorization=self.authorization
+        )
+
+        user: UserTable = userVerificationService.verify_user_authorization()
+
+        
         notification_users[user_id] = websocket
         await self._set_online_user(user_id)
 
-        print(f"{AnsiColor.GREEN}INFO{AnsiColor.RESET}:     {user_id} connected")
+        print(f"{AnsiColor.GREEN}INFO{AnsiColor.RESET}:     {user.user_id} connected")
 
         subscription_task = asyncio.create_task(self._redis_subscriber(websocket, user_id))
 
@@ -171,9 +166,8 @@ class NotifyWebSocket:
             notification_users.pop(user_id, None)
             await self._clear_online_user(user_id)
 
-            print(f"{AnsiColor.GREEN}INFO{AnsiColor.RESET}:     {user_id} disconnected")
+            print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}:     {user_id} disconnected")
 
-     # ======================================
    
 
     async def send_notification(self, user_id: str, title: str, body: str, payload: dict = None):

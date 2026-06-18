@@ -19,6 +19,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.protected_prefixes = protected_prefixes or []
         self.public_paths = public_paths or []
 
+
     async def dispatch(self, request, call_next):
         if (
             request.method == "OPTIONS"
@@ -42,6 +43,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return self._unauthorized("Invalid Token")
 
         db = SessionLocal()
+        
         try:
             verifier = UserVerificationService(db=db, request=request, authorization=authorization)
             user_id = verifier.verify_access_token(access_token=access_token)

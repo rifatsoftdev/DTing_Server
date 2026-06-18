@@ -39,14 +39,7 @@ class TFAServices(TokenGenerators):
             authorization=self.authorization
         )
 
-        return user_verification_service.verify_user(
-            user_id=user_id,
-            access_token=access_token,
-            device_id=device_id,
-            device_uuid=device_uuid,
-            password=password,
-            advance_check=False
-        )
+        return user_verification_service.verify_user_authorization()
 
     def __get_method(self, user_id: str, method_type: TwoFactorType) -> TwoFactorTable | None:
         return self.db.query(TwoFactorTable).filter(
@@ -82,6 +75,7 @@ class TFAServices(TokenGenerators):
         method.delivery_address = delivery_address
         method.secret_key = secret_key
         method.is_primary = should_be_primary
+        
         return method
 
     @staticmethod

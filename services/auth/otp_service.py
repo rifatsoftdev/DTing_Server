@@ -225,7 +225,10 @@ class OTPService(TokenGenerators):
             user = self._get_otp_user(token_payload.get("user_id"))
 
             if token_payload.get("email_address") and user.email_address != token_payload.get("email_address"):
-                raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+                raise HTTPException(
+                    status_code=401,
+                    detail=String.INVALID_TOKEN
+                )
 
             if user.email_verified:
                 return GlobalResponse(
@@ -240,11 +243,15 @@ class OTPService(TokenGenerators):
             if not token_payload.get("device_id") or not token_payload.get("device_uuid"):
                 raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
 
-            new_token = self.create_email_verification_token(
-                user=user,
-                device_id=token_payload.get("device_id"),
-                device_uuid=token_payload.get("device_uuid"),
-                requires_otp=True
+            new_token = self._create_token(
+                data={
+                    "user":user,
+                    "device_id":token_payload.get("device_id"),
+                    "device_uuid":token_payload.get("device_uuid"),
+                    'requires_otp':True
+                },
+                token_type="",
+                expire_min=0
             )
 
             otp = Generators.generate_otp()

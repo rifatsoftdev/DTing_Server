@@ -40,8 +40,8 @@ import app.core.firebase
 
 # create FastAPI
 app = FastAPI(
-    title="PocketPay API",
-    description="A complete digital wallet and payment solution",
+    title="DTing Server",
+    description="DTIng server authentication system.",
     version=ENV.VERSION,
 )
 
@@ -145,11 +145,11 @@ async def root(
         status_code=status.HTTP_200_OK,
         success=True,
         action="welcome",
-        message="Welcome to PocketPay API",
+        message="Welcome to DTing Server.",
         data={
-            "app": "PocketPay",
+            "app": "DTing",
             "version": ENV.VERSION,
-            "description": "A complete digital wallet and payment solution"
+            "description": "DTIng server authentication system."
         },
         next_step={}
     )
@@ -168,11 +168,11 @@ async def root(
         status_code=status.HTTP_200_OK,
         success=True,
         action="welcome",
-        message="Welcome to PocketPay API",
+        message="Welcome to DTing Server.",
         data={
-            "app": "PocketPay",
+            "app": "DTing",
             "version": ENV.VERSION,
-            "description": "A complete digital wallet and payment solution"
+            "description": "DTIng server authentication system."
         },
         next_step={}
     )
@@ -182,7 +182,7 @@ async def root(
 
 @app.get("/.well-known/public.pem")
 async def public_key(request: Request):
-    public_key_path = "etc/secrets/public.pem"
+    public_key_path = ENV.PUBLIC_KEY_PATH
 
     if not os.path.exists(public_key_path):
         print(1)
@@ -206,7 +206,7 @@ async def root(
 
     emailManager = EmailManager()
     emailManager.send_email(
-        email_address="rmdrifat547@gmail.com",
+        email_address="example@gmail.com",
         subject="Test Email",
         body="This is a test email from DTing API"
     )

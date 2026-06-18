@@ -12,7 +12,7 @@ class KYCUpdateRequest(BaseModel):
 # 
 class KYCRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
 

@@ -6,11 +6,12 @@ from app.model import CountryTable, AdminTable, SessionTable
 from app.enums import ActivityStatus, NotificationType
 from app.schema import CountryOut, NewCountryRequest, GlobalResponse, DisableCountryRequest
 from app.utils import Generators, Hashing
+from services.auth.token_service import TokenGenerators
 
 from services.auth.user_verification import UserVerificationService
 
 
-class CountryService():
+class CountryService(TokenGenerators):
     def __init__(
         self,
         db: Session,
@@ -22,10 +23,12 @@ class CountryService():
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
+        super().__init__()
+
 
     def _verify_requester(self, payload):
         access_token = payload.access_token
-        token_payload = Token().decode_token(access_token)
+        token_payload = self._decode_token(access_token)
 
         if not token_payload or token_payload.get("type") != "access":
             raise HTTPException(
@@ -111,6 +114,7 @@ class CountryService():
             }
         }
 
+    # get active country to get a list of active country
     def get_active_countries(self) -> GlobalResponse:
         """
         Fetch all countries with ACTIVE status.
@@ -139,6 +143,35 @@ class CountryService():
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:    {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # get all country
+    def get_all_countries(self) -> GlobalResponse:
+        """
+        Fetch all countries regardless of status.
+        """
+        try:
+            countries = self.db.query(CountryTable).all()
+            country_list = [CountryOut.model_validate(c) for c in countries]
+
+            return GlobalResponse(
+                status_code=status.HTTP_200_OK,
+                success=True,
+                action="get_all_countries",
+                message="All Countries",
+                data={
+                    "countries": country_list
+                }
+            )
+
+        except HTTPException:
+            raise
+        
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:    {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+            
+
+    # Add new country available for only admin
     def add_new_country(
         self,
         payload: NewCountryRequest
@@ -235,6 +268,8 @@ class CountryService():
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:    {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # Inactive country available for only admin
     def inactive_country(
         self,
         payload: DisableCountryRequest
@@ -284,6 +319,8 @@ class CountryService():
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:    {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # Active country available for only admin
     def active_country(
         self,
         payload: DisableCountryRequest
@@ -333,6 +370,8 @@ class CountryService():
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:    {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+
+    # Edit country available for only admin
     def edit_country(
         self,
         country_id: str,

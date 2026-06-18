@@ -22,6 +22,7 @@ class LoginRequest(BaseModel):
     user_password: str = Field(..., min_length=1)
     device_id: str
     device_uuid: str
+    services: Optional[str] = None
 
     @field_validator("phone_number", "country_code", "user_password", "device_id", "device_uuid")
     @classmethod
@@ -45,7 +46,7 @@ class LoginRequest(BaseModel):
 # Schemas for Logout Request
 class LogoutRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
 
@@ -103,7 +104,7 @@ class AccessTokenRequest(BaseModel):
 # Schema for FCM token recive
 class FCMTokenRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     fcm_token: str
@@ -125,7 +126,7 @@ class ResetPasswordRequest(BaseModel):
 # delete account request
 class DeleteAccountRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     user_password: str
@@ -135,7 +136,7 @@ class DeleteAccountRequest(BaseModel):
 # cancel delete account
 class CancelDeleteAccountRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     user_password: str
@@ -144,7 +145,7 @@ class CancelDeleteAccountRequest(BaseModel):
 # Change Password
 class ChangePasswordRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     user_password: str
@@ -154,7 +155,7 @@ class ChangePasswordRequest(BaseModel):
 # Logout all
 class LogoutAllRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
 
@@ -162,7 +163,7 @@ class LogoutAllRequest(BaseModel):
 # Link Google Account
 class LinkGoogleAccountRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     token_id: str
@@ -170,7 +171,7 @@ class LinkGoogleAccountRequest(BaseModel):
 
 class SetUsernameRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     username: str = Field(..., min_length=3, max_length=30)

@@ -169,11 +169,11 @@ async def update_profile(
     full_name: Optional[str] = Form(None),
     gender: Optional[str] = Form(None),
     date_of_birth: Optional[date] = Form(None),
-    profile_photo: Optional[UploadFile] = File(None),
-    avatar: Optional[UploadFile] = File(None),
-    photo: Optional[UploadFile] = File(None),
-    file: Optional[UploadFile] = File(None),
-    profile_picture: Optional[UploadFile] = File(None)
+
+    profile_picture: Optional[UploadFile] = File(None),
+    # avatar: Optional[UploadFile] = File(None),
+    # photo: Optional[UploadFile] = File(None),
+    # file: Optional[UploadFile] = File(None)
 ):
     userServices = UserServices(
         db=db,
@@ -190,7 +190,7 @@ async def update_profile(
         full_name=full_name,
         gender=gender,
         date_of_birth=date_of_birth,
-        profile_photo=profile_photo or avatar or photo or file or profile_picture
+        profile_picture=profile_picture
     )
 
 

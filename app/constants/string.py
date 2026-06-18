@@ -7,6 +7,7 @@ class String:
     USER_NOT_FOUND = "User Not Found"
     USER_NOT_LOGIN = "User Not Login"
     USER_ALRADY_EXISTS = "User Already Exists"
+    KYC_NOT_FOUND = "KYC Not Found"
 
     ADMIN_NOT_FOUND = "Admin Not Found"
     ADMIN_NOT_LOGIN = "Admin Not Login"

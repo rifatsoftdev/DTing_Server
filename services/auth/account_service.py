@@ -91,12 +91,7 @@ class AccountServices(OTPService, SigninService):
                 authorization=self.authorization
             )
 
-            user: UserTable = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                device_id=android_id,
-                device_uuid=android_uuid
-            )
+            user: UserTable = user_verification_service.verify_user_authorization()
 
 
             # Step 3: Check if username is already taken by another user
@@ -278,12 +273,8 @@ class AccountServices(OTPService, SigninService):
                 authorization=self.authorization
             )
 
-            user: UserTable = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                device_id=device_id,
-                device_uuid=device_uuid
-            )
+            user: UserTable = user_verification_service.verify_user_authorization()
+
 
             # Step 3: Update current session FCM token
             user_sessions: list[SessionTable] = user.sessions
@@ -342,14 +333,14 @@ class AccountServices(OTPService, SigninService):
 
 
             # Step 2: Verify user
-            user_verification_service = UserVerificationService(self.db)
-
-            user = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                android_id=android_id,
-                android_uuid=android_uuid
+            user_verification_service = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
             )
+
+            user: UserTable = user_verification_service.verify_user_authorization()
 
 
             # Step 3: check existing delete request
@@ -500,14 +491,14 @@ class AccountServices(OTPService, SigninService):
 
 
             # Step 2: Verify user
-            user_verification_service = UserVerificationService(self.db)
-
-            user: UserTable = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                android_id=android_id,
-                android_uuid=android_uuid
+            user_verification_service = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
             )
+
+            user: UserTable = user_verification_service.verify_user_authorization()
 
 
             # Step 3: Verify password

@@ -7,8 +7,8 @@ from app.constants import ENV, AnsiColor
 
 class SMSManager:
     def __init__(self):
-        self.account_sid = ENV.ACCOUNT_SID
-        self.auth_token = ENV.AUTH_TOKEN
+        self.account_sid = ENV.TWILIO_ACCOUNT_SID
+        self.auth_token = ENV.TWILIO_AUTH_TOKEN
         self.twilio_phone_number = ENV.TWILIO_PHONE_NUMBER
 
     def __send_with_twilio(self, phone_number: str, body: str) -> bool:

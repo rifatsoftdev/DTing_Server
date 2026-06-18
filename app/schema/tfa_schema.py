@@ -7,14 +7,14 @@ from pydantic import BaseModel
 # TOTP activation
 class TOTPSetupRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
 
 
 class TOTPConfirmRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     totp_code: str
@@ -22,7 +22,7 @@ class TOTPConfirmRequest(BaseModel):
 
 class TOTPAuthDisableRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     user_password: str
@@ -30,14 +30,14 @@ class TOTPAuthDisableRequest(BaseModel):
 
 class EmailTFASetupRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
 
 
 class EmailTFAConfirmRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     user_password: str
@@ -47,7 +47,7 @@ class EmailTFAConfirmRequest(BaseModel):
 
 class EmailTFADisableRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     user_password: str
@@ -56,14 +56,14 @@ class EmailTFADisableRequest(BaseModel):
 
 class SMSTFASetupRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
 
 
 class SMSTFAConfirmRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     otp: str
@@ -72,7 +72,7 @@ class SMSTFAConfirmRequest(BaseModel):
 
 class SMSTFADisableRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
     user_password: str

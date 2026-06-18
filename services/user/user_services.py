@@ -121,6 +121,7 @@ class UserServices:
         services = db.query(UserServicesTable).filter(
             UserServicesTable.user_id == user_id
         ).all()
+
         result = []
         for service in services:
             result.append({
@@ -150,6 +151,7 @@ class UserServices:
             UserServicesTable.user_id == user_id,
             UserServicesTable.service_slug == service_slug
         ).first()
+
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -270,19 +272,7 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
-
-
-            # Step 2: Fetch user profile data
-            user: UserTable = self.db.query(UserTable).filter(
-                UserTable.user_id == user_id
-            ).first()
-
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.USER_NOT_FOUND
-                )
+            user: UserTable = userVerificationService.verify_user_authorization()
 
 
             # Step 3: Return profile response
@@ -327,12 +317,12 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
+            user: UserTable = userVerificationService.verify_user_authorization()
 
 
             # Step 2: Fetch user settings data
             user: UserTable = self.db.query(UserTable).filter(
-                UserTable.user_id == user_id
+                UserTable.user_id == user.user_id
             ).first()
 
             if not user:
@@ -379,12 +369,12 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
+            user: UserTable = userVerificationService.verify_user_authorization()
 
 
             # Step 2: Fetch user data
             user: UserTable = self.db.query(UserTable).filter(
-                UserTable.user_id == user_id
+                UserTable.user_id == user.user_id
             ).first()
 
             if not user:
@@ -397,9 +387,9 @@ class UserServices:
             # Step 3: Fetch related data
             settings: SettingsTable = user.settings
             kyc: KYCTable = self.db.query(KYCTable).filter(
-                KYCTable.user_id == user_id
+                KYCTable.user_id == user.user_id
             ).first()
-            services = self.get_user_services(self.db, user_id)
+            services = self.get_user_services(self.db, user.user_id)
 
 
             # Step 4: Return full user data response
@@ -453,8 +443,6 @@ class UserServices:
                     detail="end must be greater than start"
                 )
 
-            access_token = Helpers.authorization(self.authorization)
-
             # verify user
             user_verification_service = UserVerificationService(
                 db=self.db,
@@ -462,12 +450,11 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user_id = user_verification_service.verify_access_token(
-                access_token=access_token
-            )
+            
+            user: UserTable = user_verification_service.verify_user_authorization()
 
             query = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id
+                SessionTable.user_id == user.user_id
             ).order_by(SessionTable.id.asc())
 
             total = query.count()
@@ -520,8 +507,6 @@ class UserServices:
                     detail="end must be greater than start"
                 )
 
-            access_token = Helpers.authorization(self.authorization)
-
             # verify user
             user_verification_service = UserVerificationService(
                 db=self.db,
@@ -529,12 +514,11 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user_id = user_verification_service.verify_access_token(
-                access_token=access_token
-            )
+
+            user: UserTable = user_verification_service.verify_user_authorization()
 
             query = self.db.query(UserActivityTable).filter(
-                UserActivityTable.user_id == user_id
+                UserActivityTable.user_id == user.user_id
             ).order_by(UserActivityTable.id.desc())
 
             total = query.count()
@@ -575,10 +559,10 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
+            user: UserTable = userVerificationService.verify_user_authorization()
 
             kyc = self.db.query(KYCTable).filter(
-                KYCTable.user_id == user_id
+                KYCTable.user_id == user.user_id
             ).first()
 
             return GlobalResponse(
@@ -606,18 +590,8 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
 
-            user = self.db.query(UserTable).filter(
-                UserTable.user_id == user_id
-            ).first()
-
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.USER_NOT_FOUND
-                )
-
+            user: UserTable = userVerificationService.verify_user_authorization()
             settings: SettingsTable = user.settings
 
             if not settings:
@@ -627,9 +601,10 @@ class UserServices:
                 )
 
             enabled_tfa = self.db.query(TwoFactorTable).filter(
-                TwoFactorTable.user_id == user_id,
+                TwoFactorTable.user_id == user.user_id,
                 TwoFactorTable.is_enabled == True
             ).all()
+
             enabled_tfa_methods = [
                 {
                     "method": method.method_type.value,
@@ -648,12 +623,12 @@ class UserServices:
             total_enabled = len(enabled_tfa_methods)
 
             last_login_session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id,
+                SessionTable.user_id == user.user_id,
                 SessionTable.is_login == True
             ).order_by(SessionTable.login_at.desc()).first()
 
             active_sessions = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id,
+                SessionTable.user_id == user.user_id,
                 SessionTable.is_login == True
             ).count()
 
@@ -714,20 +689,7 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                device_id=device_id,
-                device_uuid=device_uuid,
-                password=None,
-                advance_check=False
-            )
-
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found"
-                )
+            user: UserTable = user_verification_service.verify_user_authorization()
 
             old_kyc = self.db.query(KYCTable).filter(
                 KYCTable.user_id == user.user_id
@@ -844,10 +806,11 @@ class UserServices:
         user_id: str,
         device_id: str,
         device_uuid: str,
+
         full_name: Optional[str] = None,
         gender: Optional[str] = None,
         date_of_birth: Optional[date] = None,
-        profile_photo: Optional[UploadFile] = None
+        profile_picture: Optional[UploadFile] = None
     ) -> GlobalResponse:
         try:
             print(
@@ -862,17 +825,9 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            access_token: str = user_verification_service.verify_authorization(self.authorization)
 
-            user = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                device_id=device_id,
-                device_uuid=device_uuid,
-                password=None,
-                advance_check=False
-            )
-
+            user: UserTable = user_verification_service.verify_user_authorization()
+            
             # capture old values for activity logging
             old_values = {
                 "full_name": user.full_name if user else None,
@@ -893,21 +848,21 @@ class UserServices:
             if date_of_birth is not None:
                 user.date_of_birth = date_of_birth
 
-            if profile_photo is not None:
+            if profile_picture is not None:
                 print(
                     f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}: profile photo received "
-                    f"filename={profile_photo.filename}, content_type={profile_photo.content_type}"
+                    f"filename={profile_picture.filename}, content_type={profile_picture.content_type}"
                 )
 
-                if profile_photo.content_type and profile_photo.content_type not in ALLOWED_TYPES:
+                if profile_picture.content_type and profile_picture.content_type not in ALLOWED_TYPES:
                     raise HTTPException(
                         status_code=400,
                         detail="Only JPG, PNG, WEBP images allowed"
                     )
 
-                profile_photo.file.seek(0, 2)
-                size = profile_photo.file.tell()
-                profile_photo.file.seek(0)
+                profile_picture.file.seek(0, 2)
+                size = profile_picture.file.tell()
+                profile_picture.file.seek(0)
 
                 if size > MAX_SIZE:
                     raise HTTPException(
@@ -919,7 +874,7 @@ class UserServices:
                     cloudinaryStorage = CloudinaryStorage(db=self.db)
 
                     upload_result = cloudinaryStorage.upload_file(
-                        file_path=profile_photo.file,
+                        file_path=profile_picture.file,
                         public_id=f"{user.user_id}/profile_photo",
                         file_type="image"
                     )
@@ -1041,10 +996,10 @@ class UserServices:
                 request=self.request,
                 authorization=self.authorization
             )
-            user_id: str = userVerificationService.verify_authorization(authorization=self.authorization)
 
-            settings = self.db.query(SettingsTable).filter(
-                SettingsTable.user_id == user_id
+            user: UserTable = userVerificationService.verify_user_authorization()
+            settings: SettingsTable = self.db.query(SettingsTable).filter(
+                SettingsTable.user_id == user.user_id
             ).first()
 
             if not settings:
@@ -1096,7 +1051,7 @@ class UserServices:
             user_agent = self.request.headers.get("user-agent") if self.request else None
             
             activity = UserActivityTable(
-                user_id=user_id,
+                user_id=user.user_id,
                 activity_type=UserActivityType.SETTINGS_CHANGE,
                 detail={
                     "action": "settings_updated",

@@ -19,7 +19,7 @@ class CountryOut(BaseModel):
 # new country request
 class NewCountryRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: str
     device_uuid: str
 
@@ -35,7 +35,7 @@ class NewCountryRequest(BaseModel):
 
 class DisableCountryRequest(BaseModel):
     user_id: str
-    access_token: str
+    access_token: Optional[str] = None
     device_id: Optional[str] = None
     device_uuid: Optional[str] = None
     android_id: Optional[str] = None

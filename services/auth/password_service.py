@@ -27,7 +27,7 @@ class PasswordService(TokenGenerators):
         request: Request,
         authorization: str
     ):
-        super().__init__(db)
+        super().__init__()
         self.db = db
         self.background_tasks = background_tasks
         self.request = request
@@ -180,11 +180,12 @@ class PasswordService(TokenGenerators):
     # Render Reset Password Page
     def reset_password_page(self, password_token: str):
         try:
+            print()
             # Step 1: Decode and validate the password token
             payload = self._decode_token(password_token)
 
             if not payload:
-                return templates.TemplateResponse("expired.html", {"request": self.request})
+                return templates.TemplateResponse("server/expired.html", {"request": self.request})
 
 
             # Step 2: Check if user and reset record exist
@@ -193,7 +194,7 @@ class PasswordService(TokenGenerators):
             ).first()
 
             if not user:
-                return templates.TemplateResponse("expired.html", {"request": self.request})
+                return templates.TemplateResponse("server/expired.html", {"request": self.request})
 
             rst_password = self.db.query(ResetPasswordTable).filter(
                 ResetPasswordTable.user_email == user.email_address,
@@ -202,11 +203,11 @@ class PasswordService(TokenGenerators):
             ).first()
 
             if not rst_password:
-                return templates.TemplateResponse("expired.html", {"request": self.request})
+                return templates.TemplateResponse("server/expired.html", {"request": self.request})
 
 
             # Step 3: Return the reset password template
-            return templates.TemplateResponse("reset_password.html", {
+            return templates.TemplateResponse("user/reset_password.html", {
                 "request": self.request,
                 "password_token": password_token
             })
@@ -365,18 +366,23 @@ class PasswordService(TokenGenerators):
 
 
             # Step 2: Verify user
-            user_verification_service = UserVerificationService(self.db)
-            
-            user: UserTable = user_verification_service.verify_authorization(
-                user_id=user_id,
-                access_token=access_token,
-                android_id=android_id,
-                android_uuid=android_uuid,
-                password=user_password
+            user_verification_service = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
             )
+            
+            user: UserTable = user_verification_service.verify_user_authorization()
 
 
             # Step 3: Check current password
+            if (not user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.PASSWORD_NOT_SET
+                )
+                
             if not Hashing.verify_hash(user_password, user.password_hash):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,

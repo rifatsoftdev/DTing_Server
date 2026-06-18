@@ -341,14 +341,14 @@ class SigninService(TokenGenerators, UserRepository):
 
 
             # Step 1: Verify user session and identity
-            user_verification_service = UserVerificationService(self.db)
-
-            user: UserTable = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                device_id=device_id,
-                device_uuid=device_uuid
+            user_verification_service = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
             )
+
+            user: UserTable = user_verification_service.verify_user_authorization()
 
 
             # Step 2: Find and update the current session
