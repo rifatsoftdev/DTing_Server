@@ -13,16 +13,13 @@ from app.schema import (
 from app.utils import Hashing, Helpers
 
 from services.auth.user_verification import UserVerificationService
-from services.auth.otp_service import OTPService
 
 from services.auth.user_repository import UserRepository
 from services.auth.token_service import TokenGenerators
 from services.auth.signup_service import RegistrationService
 
 from services.notification.notification_services import (
-    NotificationServices,
-    NotificationData,
-    NotificationEvent,
+    NotificationServices, NotificationData, NotificationEvent
 )
 
 
@@ -407,19 +404,14 @@ class SigninService(TokenGenerators, UserRepository):
 
 
             # Step 2: Verify user session and identity
-            user_verification_service = UserVerificationService(
+            userVerificationService = UserVerificationService(
                 db=self.db,
                 background_tasks=self.background_tasks,
                 request=self.request,
                 authorization=self.authorization
             )
 
-            user: UserTable = user_verification_service.verify_user(
-                user_id=user_id,
-                access_token=access_token,
-                android_id=android_id,
-                android_uuid=android_uuid
-            )
+            user: UserTable = userVerificationService.verify_user_authorization()
 
 
             # Step 3: Find and update all active sessions
@@ -456,7 +448,6 @@ class SigninService(TokenGenerators, UserRepository):
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
 
 
 

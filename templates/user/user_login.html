@@ -296,7 +296,7 @@
                     <input class="form-check-input" type="checkbox" id="remember">
                     <label class="form-check-label small" for="remember">Remember me</label>
                 </div>
-                <a href="#" class="small fw-medium text-decoration-none">
+                <a href="/forget-password" class="small fw-medium text-decoration-none">
                     Forgot password?
                 </a>
             </div>
@@ -329,7 +329,7 @@
 </div>
 
 <script src="/static/js/utils.js"></script>
-<script src="/static/js/auth.js"></script>
+<script src="/static/js/user_auth.js"></script>
 <script src="/static/js/dialog.js"></script>
 <script>
     const loginForm = document.getElementById("login-form");
@@ -401,6 +401,7 @@
             window.setTimeout(() => {
                 window.location.href = "/verification";
             }, 900);
+
         } catch (error) {
             const msg = error?.message || "Login failed. Please try again.";
             showError(msg);

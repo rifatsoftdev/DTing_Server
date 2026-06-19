@@ -1,4 +1,7 @@
+
+// Website base url
 const BASE_URL = window.location.origin;
+
 
 function resolveDeviceIdentity() {
     const device_id = (typeof getDeviceId === "function") ? getDeviceId() : "web_device_id";

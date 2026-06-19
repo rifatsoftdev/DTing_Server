@@ -322,13 +322,8 @@ class AccountServices(OTPService, SigninService):
     def delete_account(self, payload: DeleteAccountRequest) -> GlobalResponse:
         try:
             # Step 1: Extract data from payload
-            user_id: str = payload.user_id
-            access_token: str = payload.access_token
-            android_id: str = payload.device_id
-            android_uuid: str = payload.device_uuid
             user_password: str = payload.user_password
             reason: str = payload.reason
-
             ip: str = self.request.client.host
 
 
@@ -484,9 +479,6 @@ class AccountServices(OTPService, SigninService):
         try:
             # Step 1: Extract payload data
             user_id: str = payload.user_id
-            access_token: str = payload.access_token
-            android_id: str = payload.device_id
-            android_uuid: str = payload.device_uuid
             user_password: str = payload.user_password
 
 

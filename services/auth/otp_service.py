@@ -216,6 +216,7 @@ class OTPService(TokenGenerators):
             )
         )
 
+
     def resend_email_verification(
         self,
         payload: EmailVerificationRequest

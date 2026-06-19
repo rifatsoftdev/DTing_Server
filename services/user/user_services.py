@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 
 from app.constants import AnsiColor, String, ENV
-from app.enums import KYCStatus, UserActivityType
+from app.enums import KYCStatus, UserActivityType, ActivityStatus
 from app.schema import GlobalResponse
 from app.model import SessionTable, UserTable, SettingsTable, KYCTable, UserActivityTable, UserServicesTable, TwoFactorTable
 from app.utils import Helpers
@@ -116,39 +116,62 @@ class UserServices:
             "updated_at": kyc.updated_at.isoformat() if kyc.updated_at else None
         }
 
-    @classmethod
-    def get_user_services(cls, db: Session, user_id: str) -> list[dict]:
-        services = db.query(UserServicesTable).filter(
-            UserServicesTable.user_id == user_id
-        ).all()
 
-        result = []
-        for service in services:
-            result.append({
-                "id": service.id,
-                "user_id": service.user_id,
-                "service_name": service.service_name,
-                "service_slug": service.service_slug,
-                "service_details": service.service_details,
-                "status": service.status.value if service.status else None,
-                "enabled": True,
-                "created_at": service.created_at.isoformat() if service.created_at else None,
-                "updated_at": service.updated_at.isoformat() if service.updated_at else None,
-            })
-        return result
+    
+    def get_active_user_services(self) -> list[dict]:
+        try:
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
 
-    @classmethod
-    def add_user_service(
-        cls,
-        db: Session,
-        user_id: str,
-        service_slug: str,
-        service_name: str | None = None,
-        service_details: dict | None = None,
-        service_status: str | None = None,
-    ) -> dict:
-        existing = db.query(UserServicesTable).filter(
-            UserServicesTable.user_id == user_id,
+            user: UserTable = userVerificationService.verify_user_authorization()
+
+            services = self.db.query(UserServicesTable).filter(
+                UserServicesTable.user_id == user.user_id
+            ).all()
+
+            result = []
+
+            for service in services:
+                result.append({
+                    "id": service.id,
+                    "user_id": service.user_id,
+                    "service_name": service.service_name,
+                    "service_slug": service.service_slug,
+                    "service_details": service.service_details,
+                    "status": service.status.value if service.status else None,
+                    "enabled": True,
+                    "created_at": service.created_at.isoformat() if service.created_at else None,
+                    "updated_at": service.updated_at.isoformat() if service.updated_at else None,
+                })
+
+            return result
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+            
+
+
+    def add_user_service(self, service_slug: str) -> dict:
+        
+        userVerificationService = UserVerificationService(
+            db=self.db,
+            background_tasks=self.background_tasks,
+            request=self.request,
+            authorization=self.authorization
+        )
+
+        user: UserTable = userVerificationService.verify_user_authorization()
+        
+        existing: UserServicesTable = self.db.query(UserServicesTable).filter(
+            UserServicesTable.user_id == user.user_id,
             UserServicesTable.service_slug == service_slug
         ).first()
 
@@ -158,18 +181,9 @@ class UserServices:
                 detail="Service already enabled for this user"
             )
 
-        from app.enums import ActivityStatus
-
-        if service_status:
-            try:
-                status_value = ActivityStatus(service_status.lower())
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid service status"
-                )
-        else:
-            status_value = ActivityStatus.ACTIVE
+        
+        
+        status_value = ActivityStatus.ACTIVE
 
         if not service_name:
             service_name = " ".join(part.capitalize() for part in service_slug.split("-"))
@@ -181,9 +195,9 @@ class UserServices:
             service_details=service_details,
             status=status_value,
         )
-        db.add(service)
-        db.commit()
-        db.refresh(service)
+        self.db.add(service)
+        self.db.commit()
+        self.db.refresh(service)
 
         return {
             "id": service.id,
@@ -196,6 +210,7 @@ class UserServices:
             "created_at": service.created_at.isoformat() if service.created_at else None,
             "updated_at": service.updated_at.isoformat() if service.updated_at else None,
         }
+
 
     @classmethod
     def update_user_service(

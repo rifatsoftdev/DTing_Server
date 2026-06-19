@@ -1,14 +1,17 @@
 from fastapi import HTTPException, Request, status, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from typing import List
 
 from app.constants import AnsiColor, String
 from app.model import CountryTable, AdminTable, SessionTable
 from app.enums import ActivityStatus, NotificationType
 from app.schema import CountryOut, NewCountryRequest, GlobalResponse, DisableCountryRequest
 from app.utils import Generators, Hashing
-from services.auth.token_service import TokenGenerators
 
+from services.auth.token_service import TokenGenerators
 from services.auth.user_verification import UserVerificationService
+from services.notification.notification_services import NotificationData, NotificationServices, NotificationEvent
 
 
 class CountryService(TokenGenerators):
@@ -26,101 +29,13 @@ class CountryService(TokenGenerators):
         super().__init__()
 
 
-    def _verify_requester(self, payload):
-        access_token = payload.access_token
-        token_payload = self._decode_token(access_token)
-
-        if not token_payload or token_payload.get("type") != "access":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=String.INVALID_TOKEN
-            )
-
-        admin_id = token_payload.get("admin_id")
-        if admin_id:
-            if payload.user_id != admin_id:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.INVALID_TOKEN
-                )
-
-            admin = self.db.query(AdminTable).filter(
-                AdminTable.admin_id == admin_id
-            ).first()
-
-            if not admin or not admin.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Admin not found or inactive"
-                )
-
-            session_query = self.db.query(SessionTable).filter(
-                SessionTable.admin_id == admin_id,
-                SessionTable.is_login == True
-            )
-
-            device_id = getattr(payload, "device_id", None) or getattr(payload, "android_id", None)
-            device_uuid = getattr(payload, "device_uuid", None) or getattr(payload, "android_uuid", None)
-
-            if device_id:
-                session_query = session_query.filter(SessionTable.device_id == device_id)
-            if device_uuid:
-                session_query = session_query.filter(SessionTable.device_uuid == device_uuid)
-
-            sessions = session_query.all()
-            valid_session = any(
-                session.access_token_hash and Hashing.verify_hash(access_token, session.access_token_hash)
-                for session in sessions
-            )
-
-            if not valid_session:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Admin session not found"
-                )
-
-            return {
-                "user": None,
-                "meta": {
-                    "admin_id": admin.admin_id,
-                    "email": admin.email,
-                    "name": admin.full_name
-                }
-            }
-
-        user_verification_service = UserVerificationService(
-            db=self.db,
-            background_tasks=self.background_tasks,
-            request=self.request,
-            authorization=self.authorization
-        )
-
-        user = user_verification_service.verify_user(
-            db=self.db,
-            user_id=payload.user_id,
-            access_token=payload.access_token,
-            android_id=getattr(payload, "android_id", None) or getattr(payload, "device_id", None),
-            android_uuid=getattr(payload, "android_uuid", None) or getattr(payload, "device_uuid", None),
-            password=getattr(payload, "user_password", None) or None
-        )
-
-        return {
-            "user": user,
-            "meta": {
-                "user_id": user.user_id,
-                "phone": user.phone_number,
-                "email": user.email_address,
-                "name": user.full_name
-            }
-        }
-
     # get active country to get a list of active country
     def get_active_countries(self) -> GlobalResponse:
         """
         Fetch all countries with ACTIVE status.
         """
         try:
-            country = self.db.query(CountryTable).filter(
+            country: List[CountryTable] = self.db.query(CountryTable).filter(
                 CountryTable.status == ActivityStatus.ACTIVE
             ).all()
 
@@ -144,13 +59,22 @@ class CountryService(TokenGenerators):
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
 
-    # get all country
+    # get all country admin only
     def get_all_countries(self) -> GlobalResponse:
         """
         Fetch all countries regardless of status.
         """
         try:
-            countries = self.db.query(CountryTable).all()
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            
+            admin: AdminTable = userVerificationService.verify_admin_authorization()
+
+            countries: List[CountryTable] = self.db.query(CountryTable).all()
             country_list = [CountryOut.model_validate(c) for c in countries]
 
             return GlobalResponse(
@@ -180,24 +104,24 @@ class CountryService(TokenGenerators):
         Logic to validate and create a new country record.
         """
         try:
-            requester = self._verify_requester(payload)
-            user = requester["user"]
-
-            # print(user)
-
-            name: str = payload.counrty_name
-            code: str = payload.counrty_code
-            flag_emoji: str = payload.flag_emoji
-            currency: str = payload.currency
-            currency_symbol: str = payload.currency_symbol
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            
+            admin: AdminTable = userVerificationService.verify_admin_authorization()
             
             country_id = Generators.generate_id("country")
 
             # check existin
             country = self.db.query(CountryTable).filter(
-                CountryTable.counrty_name == name,
-                CountryTable.counrty_code == code,
-                CountryTable.currency == currency
+                or_(
+                    CountryTable.country_name == payload.country_name,
+                    CountryTable.country_code == payload.country_code,
+                    CountryTable.currency == payload.currency_symbol
+                )
             ).first()
 
             if country:
@@ -209,34 +133,43 @@ class CountryService(TokenGenerators):
             # create new country
             country = CountryTable(
                 counrty_id=country_id,
-                counrty_name=name,
-                counrty_code=code,
-                flag_emoji=flag_emoji,
-                currency=currency,
-                currency_symbol=currency_symbol,
+                counrty_name=payload.country_name,
+                counrty_code=payload.country_code,
+                flag_emoji=payload.flag_emoji,
+                currency=payload.currency,
+                currency_symbol=payload.currency,
                 meta_data= {
-                    "request_user": requester["meta"]
+                    "admin_id": admin.admin_id
                 }
             )
             self.db.add(country)
             self.db.flush()
 
-            # real time notification
-            if user:
-                notifier = NotificationManager(self.db)
 
-                notifier.send_user_notification(
-                    background_tasks=self.background_tasks,
-                    user_id=user.user_id,
-                    title="New Country Added Request Received",
-                    short_body=f"You have requested to become a New Country. The request was successful. Wait for your Country ID {country.counrty_id} account to be activated.",
-                    long_body=None,
-                    noty_type=NotificationType.REQUEST,
-                    image_url=None,
+            
+            # Step 8: Send notification alerts
+            notification_services = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+
+            notification_services.send_notification(
+                data=NotificationData(
+                    user_id=admin.admin_id,
+                    email_address=admin.email,
+                    event=NotificationEvent.GENERAL_NOTIFICATION,
+                    context={
+                        "name": admin.full_name,
+                        "title": "New Country Added Request Received",
+                        "message": f"You have requested to become a New Country. The request was successful. Wait for your Country ID {country.country_id} account to be activated."
+                    },
                     push=True,
-                    sms=False,
-                    email=False
+                    email=True
                 )
+            )
+            
 
             self.db.commit()
             self.db.refresh(country)
@@ -247,9 +180,9 @@ class CountryService(TokenGenerators):
                 action="add_new_country",
                 message="Country Added Successfully",
                 data={
-                    "country_id": country.counrty_id,
-                    "country_name": country.counrty_name,
-                    "country_code": country.counrty_code,
+                    "country_id": country.country_id,
+                    "country_name": country.country_name,
+                    "country_code": country.country_code,
                     "flag_emoji": country.flag_emoji,
                     "currency": country.currency,
                     "currency_symbol": country.currency_symbol
@@ -278,11 +211,18 @@ class CountryService(TokenGenerators):
         Logic to validate and create a new country record.
         """
         try:
-            self._verify_requester(payload)
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            
+            admin: AdminTable = userVerificationService.verify_admin_authorization()
 
             # check existin
             country = self.db.query(CountryTable).filter(
-                CountryTable.counrty_id == payload.counrty_id
+                CountryTable.country_id == payload.counrty_id
             ).first()
 
             if not country:
@@ -329,11 +269,18 @@ class CountryService(TokenGenerators):
         Logic to validate and create a new country record.
         """
         try:
-            self._verify_requester(payload)
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            
+            admin: AdminTable = userVerificationService.verify_admin_authorization()
 
             # check existin
             country = self.db.query(CountryTable).filter(
-                CountryTable.counrty_id == payload.counrty_id
+                CountryTable.country_id == payload.counrty_id
             ).first()
 
             if not country:
@@ -378,10 +325,17 @@ class CountryService(TokenGenerators):
         payload: NewCountryRequest
     ) -> GlobalResponse:
         try:
-            self._verify_requester(payload)
+            userVerificationService = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+            
+            admin: AdminTable = userVerificationService.verify_admin_authorization()
 
             country = self.db.query(CountryTable).filter(
-                CountryTable.counrty_id == country_id
+                CountryTable.country_id == country_id
             ).first()
 
             if not country:
@@ -391,8 +345,8 @@ class CountryService(TokenGenerators):
                 )
 
             existing_country = self.db.query(CountryTable).filter(
-                CountryTable.counrty_id != country_id,
-                CountryTable.counrty_name == payload.counrty_name
+                CountryTable.country_id != country_id,
+                CountryTable.country_name == payload.country_name
             ).first()
 
             if existing_country:
@@ -401,8 +355,8 @@ class CountryService(TokenGenerators):
                     detail=String.COUNTRIES_ALREADY_EXISTS
                 )
 
-            country.counrty_name = payload.counrty_name
-            country.counrty_code = payload.counrty_code
+            country.country_name = payload.country_name
+            country.country_code = payload.country_code
             country.flag_emoji = payload.flag_emoji
             country.currency = payload.currency
             country.currency_symbol = payload.currency_symbol
@@ -416,9 +370,9 @@ class CountryService(TokenGenerators):
                 action="edit_country",
                 message="Country Updated Successfully",
                 data={
-                    "country_id": country.counrty_id,
-                    "country_name": country.counrty_name,
-                    "country_code": country.counrty_code,
+                    "country_id": country.country_id,
+                    "country_name": country.country_name,
+                    "country_code": country.country_code,
                     "flag_emoji": country.flag_emoji,
                     "currency": country.currency,
                     "currency_symbol": country.currency_symbol
