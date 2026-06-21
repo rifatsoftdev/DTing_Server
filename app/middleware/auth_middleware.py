@@ -1,9 +1,11 @@
 from fastapi import status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.constants import AnsiColor
+from app.model import UserTable
 from app.schema import GlobalResponse
 from services.auth.user_verification import UserVerificationService
 
@@ -19,8 +21,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.protected_prefixes = protected_prefixes or []
         self.public_paths = public_paths or []
 
-
     async def dispatch(self, request, call_next):
+
         if (
             request.method == "OPTIONS"
             or self._is_public_path(request.url.path)
@@ -28,25 +30,68 @@ class AuthMiddleware(BaseHTTPMiddleware):
         ):
             return await call_next(request)
 
-        authorization = request.headers.get("authorization")
-        if not authorization:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Missing Authorization header")
-            return self._unauthorized("Missing Authorization header")
+        client_type = request.headers.get("X-Client-Type")
 
-        if not authorization.startswith("Bearer "):
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Invalid token format")
-            return self._unauthorized("Invalid token format")
+        # fallback detection (UA sniffing) - eta easily spoof kora jay,
+        # tai eta sirf "helper", actual security na. Real security er
+        # jonno X-Client-Signature (HMAC) approach use korar kotha
+        # already aagei discuss hoyeche - shei layer aagei add korben.
+        ua = request.headers.get("user-agent", "").lower()
 
-        access_token = authorization.split(" ", 1)[1].strip()
-        if not access_token:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Invalid Token")
-            return self._unauthorized("Invalid Token")
+        if not client_type:
+            if "okhttp" in ua:
+                client_type = "android"
+            elif "mozilla" in ua:
+                client_type = "web"
+            else:
+                client_type = "unknown"
 
-        db = SessionLocal()
-        
+        request.state.client_type = client_type
+
+        # BLOCK unknown clients
+        if client_type not in ["android", "web"]:
+            return JSONResponse(
+                status_code=403,
+                content={"message": "Invalid client"}
+            )
+
+        # ============================================================
+        # Client type onujayi token kothai theke nibo shetai thik kora
+        # ============================================================
+        token: str | None = None
+
+        if client_type == "android":
+            # App -> Authorization header e Bearer token
+            authorization = request.headers.get("authorization")
+            if authorization and authorization.lower().startswith("bearer "):
+                token = authorization.split(" ", 1)[1].strip()
+
+        elif client_type == "web":
+            # Web -> Cookie e token (cookie naam apnar login flow er
+            # cookie set korar shomoy ja diyechen, shetar shathe match
+            # korben. ekhane "access_token" placeholder, replace korben.)
+            token = request.cookies.get("access_token")
+
+        if not token:
+            return self._unauthorized(
+                "Missing authentication token",
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # ============================================================
+        # Token format same rekhe (Bearer <token>) purono service
+        # UserVerificationService ke unchanged rakha hoyeche
+        # ============================================================
+        db: Session = SessionLocal()
+
         try:
-            verifier = UserVerificationService(db=db, request=request, authorization=authorization)
-            user_id = verifier.verify_access_token(access_token=access_token)
+            userVerificationService = UserVerificationService(
+                db=db,
+                authorization=f"Bearer {token}"
+            )
+
+            user: UserTable = userVerificationService.verify_user_authorization()
+
         except Exception as exc:
             status_code = getattr(exc, "status_code", status.HTTP_401_UNAUTHORIZED)
             detail = getattr(exc, "detail", "Invalid or Expired Token")
@@ -55,8 +100,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         finally:
             db.close()
 
-        request.state.user_id = user_id
-        request.state.access_token = access_token
+        request.state.current_user = user
 
         return await call_next(request)
 
@@ -82,3 +126,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             status_code=status_code,
             content=response.model_dump()
         )
+
+
+
+
+# ==============================================================================
+# ==============================================================================

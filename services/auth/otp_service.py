@@ -42,6 +42,7 @@ class OTPService(TokenGenerators):
         return value.value if hasattr(value, "value") else str(value)
 
     def _decode_otp_request_token(self, otp_token: str) -> dict:
+        # OTP tokens don't have iss/aud claims, skip validation
         token_payload = self._decode_token(otp_token)
 
         if token_payload is None:
@@ -71,7 +72,7 @@ class OTPService(TokenGenerators):
         device_uuid: str = None,
         requires_otp: bool = False
     ) -> str:
-        return self._create_token(
+        token, _ = self._create_token(
             data={
                 "user_id": user.user_id,
                 "email_address": user.email_address,
@@ -82,8 +83,10 @@ class OTPService(TokenGenerators):
             token_type=String.EMAIL_VERIFICATION_TOKEN,
             expire_min=ENV.OTP_TOKEN_EXPIRE_MIN
         )
+        return token
 
     def _decode_email_verification_token(self, token: str) -> dict:
+        # Email verification tokens don't have iss/aud claims, skip validation
         token_payload = self._decode_token(token)
 
         if token_payload is None:
@@ -244,7 +247,7 @@ class OTPService(TokenGenerators):
             if not token_payload.get("device_id") or not token_payload.get("device_uuid"):
                 raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
 
-            new_token = self._create_token(
+            new_token, _ = self._create_token(
                 data={
                     "user":user,
                     "device_id":token_payload.get("device_id"),
@@ -541,23 +544,27 @@ class OTPService(TokenGenerators):
 
                 self.db.commit()
 
-            access_token = self._create_token(
+            access_token, _ = self._create_token(
                 data={
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,
-                    "device_uuid": device_uuid
+                    "device_uuid": device_uuid,
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": ENV.ALLOWED_AUDIENCES,
                 },
                 token_type="access",
                 expire_min=ENV.ACCESS_EXPIRE
             )
 
-            refresh_token = self._create_token(
+            refresh_token, _ = self._create_token(
                 data={
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,
-                    "device_uuid": device_uuid
+                    "device_uuid": device_uuid,
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": [f"auth.{ENV.MAIN_DOMAIN}"],
                 },
                 token_type="refresh",
                 expire_day=ENV.REFRESH_EXPIRE

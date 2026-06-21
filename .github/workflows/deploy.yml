@@ -1,4 +1,4 @@
-name: DTing CI/CD
+name: DTing_Server CI/CD
 
 on:
   push:
@@ -25,22 +25,21 @@ jobs:
         run: |
           pytest -q || true
 
-deploy:
-    needs: test
-    runs-on: ubuntu-latest
+  deploy:
+      needs: test
+      runs-on: ubuntu-latest
 
-    steps:
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.AWS_HOST }}
-          username: ${{ secrets.AWS_USER }}
-          key: ${{ secrets.AWS_KEY }}
-          script: |
-            cd DTing_Server/
-
-            git pull origin main
-
-            docker build --no-cache -t dting-server .
-
-            docker run -p 8000:8000 dting-server
+      steps:
+        - name: Deploy to EC2
+          uses: appleboy/ssh-action@v1.2.0
+          with:
+            host: ${{ secrets.AWS_HOST }}
+            username: ${{ secrets.AWS_USER }}
+            key: ${{ secrets.AWS_KEY }}
+            script: |
+              cd DTing_Server/
+              git pull origin main
+              docker stop dting-server || true
+              docker rm dting-server || true
+              docker build --no-cache -t dting-server .
+              docker run -p 8000:8000 dting-server

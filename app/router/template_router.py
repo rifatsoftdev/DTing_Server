@@ -76,7 +76,7 @@ def verification_page(request: Request):
 @template_router.get("/account", tags=["UI"], response_class=HTMLResponse)
 def account_page(request: Request):
     """Account management page"""
-    return templates.TemplateResponse("account.html", {"request": request})
+    return templates.TemplateResponse("user/account.html", {"request": request})
 
 
 

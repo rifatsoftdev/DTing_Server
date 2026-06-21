@@ -2,7 +2,7 @@ from fastapi import HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from jose import JWTError
 
-from app.constants import AnsiColor, String
+from app.constants import AnsiColor, String, ENV
 
 from app.utils.hashing import Hashing
 from app.enums import KYCStatus
@@ -131,7 +131,11 @@ class UserVerificationService(TokenGenerators):
             
 
             # Step 2: Decode and validate token
-            payload: dict = self._decode_token(self.__bearer_2_token(self.authorization))
+            payload: dict = self._decode_token(
+                self.__bearer_2_token(self.authorization),
+                audience=ENV.ALLOWED_AUDIENCES,
+                issuer=f"auth.{ENV.MAIN_DOMAIN}"
+            )
 
             if not payload:
                 raise HTTPException(
@@ -239,7 +243,11 @@ class UserVerificationService(TokenGenerators):
             
 
             # Step 2: Decode and validate token
-            payload: dict = self._decode_token(self.__bearer_2_token(self.authorization))
+            payload: dict = self._decode_token(
+                self.__bearer_2_token(self.authorization),
+                audience=ENV.ALLOWED_AUDIENCES,
+                issuer=f"auth.{ENV.MAIN_DOMAIN}"
+            )
 
             if not payload:
                 raise HTTPException(
@@ -322,7 +330,11 @@ class UserVerificationService(TokenGenerators):
 
     # Admin authorization function
     def verify_app_token(self, access_token: str, advanced: bool = False) -> str:
-        payload: dict = self._decode_token(access_token)
+        payload: dict = self._decode_token(
+            access_token,
+            audience=f"auth.{ENV.MAIN_DOMAIN}",
+            issuer=f"auth.{ENV.MAIN_DOMAIN}"
+        )
         
         if not payload:
             raise HTTPException(

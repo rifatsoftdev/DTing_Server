@@ -62,7 +62,7 @@ class PasswordService(TokenGenerators):
 
 
             # Step 3: Generate Reset Token
-            otp_token: str = self._create_token(
+            otp_token, _ = self._create_token(
                 token_type="otp",
                 expire_min=ENV.PASS_RST_TOKEN_EXPIRE_MIN,
                 data={

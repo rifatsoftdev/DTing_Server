@@ -106,26 +106,30 @@ class GoogleOauth(TokenGenerators):
             user = existing_user
 
             # Generate access token
-            access_token = self._create_token(
+            access_token, _ = self._create_token(
                 token_type="access",
                 expire_min=ENV.ACCESS_EXPIRE,
                 data={
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,
-                    "device_uuid": device_uuid
+                    "device_uuid": device_uuid,
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": ENV.ALLOWED_AUDIENCES,
                 }
             )
 
             # Generate refresh token
-            refresh_token = self._create_token(
+            refresh_token, _ = self._create_token(
                 token_type="refresh",
-                expire_min=ENV.REFRESH_EXPIRE,
+                expire_day=ENV.REFRESH_EXPIRE,
                 data={
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,
-                    "device_uuid": device_uuid
+                    "device_uuid": device_uuid,
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": [f"auth.{ENV.MAIN_DOMAIN}"],
                 }
             )
 

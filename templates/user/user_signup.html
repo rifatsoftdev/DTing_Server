@@ -297,13 +297,8 @@
             
             <div class="mb-3">
                 <div class="input-group">
-                    <select name="country_code" class="form-select" aria-label="Country code">
-                        <option value="+88" selected>BD +88</option>
-                        <option value="+91">IN +91</option>
-                        <option value="+1">US +1</option>
-                        <option value="+44">UK +44</option>
-                        <option value="+971">UAE +971</option>
-                        <option value="+966">SA +966</option>
+                    <select name="country_code" class="form-select" aria-label="Country code" id="country-code-signup">
+                        <option value="" disabled selected>Loading...</option>
                     </select>
                     <input type="tel" name="phone" class="form-control" placeholder="Phone number" required>
                 </div>
@@ -355,7 +350,7 @@
 
         <p class="text-center mt-3 footer-text">
             By continuing, you agree to our
-            <a href="/terms" class="text-decoration-none">Terms</a>
+            <a href="/terms-and-conditions" class="text-decoration-none">Terms</a>
             &
             <a href="/privacy" class="text-decoration-none">Privacy Policy</a>
         </p>
@@ -363,179 +358,186 @@
     </div>
 </div>
 
-<script src="/static/js/utils.js"></script>
-<script src="/static/js/auth.js"></script>
-<script src="/static/js/dialog.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-    const signupForm = document.getElementById("signup-form");
-    const toggle = document.getElementById("togglePasswordSignup");
-    const pwd = document.getElementById("passwordSignup");
-    const confirmPwd = document.getElementById("confirm_password");
-    const eye = document.getElementById("eyeIconSignup");
-    const submitBtn = document.getElementById("signup-submit-btn");
-    const errorBox = document.getElementById("error-message");
-    const successBox = document.getElementById("success-message");
+<script type="module" src="/static/js/countries.js"></script>
+    <script type="module" src="/static/js/user_auth.js"></script>
+    <script src="/static/js/dialog.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const signupForm = document.getElementById("signup-form");
+            const toggle = document.getElementById("togglePasswordSignup");
+            const pwd = document.getElementById("passwordSignup");
+            const confirmPwd = document.getElementById("confirm_password");
+            const eye = document.getElementById("eyeIconSignup");
+            const submitBtn = document.getElementById("signup-submit-btn");
+            const errorBox = document.getElementById("error-message");
+            const successBox = document.getElementById("success-message");
+            const countryCodeSelect = document.getElementById("country-code-signup");
 
-    function setError(message) {
-        successBox.classList.add("d-none");
-        if (!message) {
-            errorBox.classList.add("d-none");
-            errorBox.textContent = "";
-            return;
-        }
-        errorBox.textContent = message;
-        errorBox.classList.remove("d-none");
-    }
+            if (countryCodeSelect && typeof window.loadCountries === 'function') {
+                window.loadCountries(countryCodeSelect);
+            }
 
-    function setSuccess(message) {
-        errorBox.classList.add("d-none");
-        errorBox.textContent = "";
-        if (!message) {
-            successBox.classList.add("d-none");
-            successBox.textContent = "";
-            return;
-        }
-        successBox.textContent = message;
-        successBox.classList.remove("d-none");
-    }
+            function setError(message) {
+                successBox.classList.add("d-none");
+                if (!message) {
+                    errorBox.classList.add("d-none");
+                    errorBox.textContent = "";
+                    return;
+                }
+                errorBox.textContent = message;
+                errorBox.classList.remove("d-none");
+            }
 
-    function setLoading(isLoading) {
-        submitBtn.disabled = isLoading;
-        submitBtn.textContent = isLoading ? "Creating..." : "Create Account";
-    }
+            function setSuccess(message) {
+                errorBox.classList.add("d-none");
+                errorBox.textContent = "";
+                if (!message) {
+                    successBox.classList.add("d-none");
+                    successBox.textContent = "";
+                    return;
+                }
+                successBox.textContent = message;
+                successBox.classList.remove("d-none");
+            }
 
-    toggle.onclick = () => {
-        pwd.type = pwd.type === "password" ? "text" : "password";
-        eye.classList.toggle("fa-eye");
-        eye.classList.toggle("fa-eye-slash");
-    };
+            function setLoading(isLoading) {
+                submitBtn.disabled = isLoading;
+                submitBtn.textContent = isLoading ? "Creating..." : "Create Account";
+            }
 
-    [pwd, confirmPwd].forEach((el) => {
-        el.addEventListener("input", () => {
-            confirmPwd.setCustomValidity("");
-            setError("");
+            toggle.onclick = () => {
+                pwd.type = pwd.type === "password" ? "text" : "password";
+                eye.classList.toggle("fa-eye");
+                eye.classList.toggle("fa-eye-slash");
+            };
+
+            [pwd, confirmPwd].forEach((el) => {
+                el.addEventListener("input", () => {
+                    confirmPwd.setCustomValidity("");
+                    setError("");
+                });
+            });
+
+            signupForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                setError("");
+                setSuccess("");
+
+                const formData = new FormData(signupForm);
+                const firstName = (formData.get("first_name") || "").toString().trim();
+                const lastName = (formData.get("last_name") || "").toString().trim();
+                const email = (formData.get("email") || "").toString().trim();
+                const phone = (formData.get("phone") || "").toString().trim();
+                const countryCode = (formData.get("country_code") || "").toString().trim();
+                const password = (formData.get("password") || "").toString();
+                const confirmPassword = (formData.get("confirm_password") || "").toString();
+
+                if (password !== confirmPassword) {
+                    confirmPwd.setCustomValidity("Passwords do not match");
+                } else {
+                    confirmPwd.setCustomValidity("");
+                }
+
+                if (!signupForm.checkValidity()) {
+                    signupForm.classList.add("was-validated");
+                    return;
+                }
+
+                const fullName = [firstName, lastName].filter(Boolean).join(" ");
+                const identity = (typeof resolveDeviceIdentity === "function")
+                    ? resolveDeviceIdentity()
+                    : { device_id: "web_device_id", device_uuid: "web_device_uuid" };
+
+                const payload = {
+                    full_name: fullName,
+                    email_address: email,
+                    phone_number: phone,
+                    country_code: countryCode,
+                    user_password: password,
+                    device: "web",
+                    device_id: identity.device_id,
+                    device_uuid: identity.device_uuid
+                };
+
+                setLoading(true);
+                try {
+                    const response = await fetch(`${window.location.origin}/auth/signup`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const message = (typeof parseResponseError === "function")
+                            ? await parseResponseError(response)
+                            : `Signup failed (${response.status})`;
+                        throw new Error(message);
+                    }
+
+                    const raw = await response.text();
+                    let result = {};
+                    try {
+                        result = raw ? JSON.parse(raw) : {};
+                    } catch (_) {
+                        result = {};
+                    }
+
+                    const message = result?.message || "Registration successful.";
+
+                    const emailVerificationToken = result?.data?.email_verification_token;
+                    const userId = result?.data?.user_id;
+                    if (!emailVerificationToken || !userId) {
+                        throw new Error("Registration completed, but verification data was not returned.");
+                    }
+
+                    setSuccess("Registration complete. OTP sent to your email.");
+                    signupForm.reset();
+                    signupForm.classList.remove("was-validated");
+
+                    if (window.DTDialog && typeof window.DTDialog.success === "function") {
+                        window.DTDialog.success(message, { autoClose: 1600 });
+                    }
+
+                    const params = new URLSearchParams({
+                        mode: "new_user_email",
+                        user_id: userId,
+                        method: "email",
+                        delever_to: email,
+                        email_verification_token: emailVerificationToken
+                    });
+                    setTimeout(() => {
+                        window.location.href = `/verification?${params.toString()}`;
+                    }, 800);
+                } catch (err) {
+                    const message = err?.message || "Signup failed";
+                    setError(message);
+                    if (window.DTDialog && typeof window.DTDialog.error === "function") {
+                        window.DTDialog.error(message);
+                    }
+                } finally {
+                    setLoading(false);
+                }
+            });
+
+            function googleSignUp() {
+                const message = "Google signup is not available. Please try again.";
+                if (window.DTDialog && typeof window.DTDialog.error === "function") {
+                    window.DTDialog.error(message);
+                    return;
+                }
+                alert(message);
+            }
+
+            function facebookSignUp() {
+                const message = "Facebook signup is not available. Please try again.";
+                if (window.DTDialog && typeof window.DTDialog.error === "function") {
+                    window.DTDialog.error(message);
+                    return;
+                }
+                alert(message);
+            }
         });
-    });
-
-    signupForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        setError("");
-        setSuccess("");
-
-        const formData = new FormData(signupForm);
-        const firstName = (formData.get("first_name") || "").toString().trim();
-        const lastName = (formData.get("last_name") || "").toString().trim();
-        const email = (formData.get("email") || "").toString().trim();
-        const phone = (formData.get("phone") || "").toString().trim();
-        const countryCode = (formData.get("country_code") || "").toString().trim();
-        const password = (formData.get("password") || "").toString();
-        const confirmPassword = (formData.get("confirm_password") || "").toString();
-
-        if (password !== confirmPassword) {
-            confirmPwd.setCustomValidity("Passwords do not match");
-        } else {
-            confirmPwd.setCustomValidity("");
-        }
-
-        if (!signupForm.checkValidity()) {
-            signupForm.classList.add("was-validated");
-            return;
-        }
-
-        const fullName = [firstName, lastName].filter(Boolean).join(" ");
-        const identity = (typeof resolveDeviceIdentity === "function")
-            ? resolveDeviceIdentity()
-            : { device_id: "web_device_id", device_uuid: "web_device_uuid" };
-
-        const payload = {
-            full_name: fullName,
-            email_address: email,
-            phone_number: phone,
-            country_code: countryCode,
-            user_password: password,
-            device: "web",
-            device_id: identity.device_id,
-            device_uuid: identity.device_uuid
-        };
-
-        setLoading(true);
-        try {
-            const response = await fetch(`${window.location.origin}/auth/signup`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-                const message = (typeof parseResponseError === "function")
-                    ? await parseResponseError(response)
-                    : `Signup failed (${response.status})`;
-                throw new Error(message);
-            }
-
-            const raw = await response.text();
-            let result = {};
-            try {
-                result = raw ? JSON.parse(raw) : {};
-            } catch (_) {
-                result = {};
-            }
-
-            const message = result?.message || "Registration successful.";
-
-            const emailVerificationToken = result?.data?.email_verification_token;
-            const userId = result?.data?.user_id;
-            if (!emailVerificationToken || !userId) {
-                throw new Error("Registration completed, but verification data was not returned.");
-            }
-
-            setSuccess("Registration complete. OTP sent to your email.");
-            signupForm.reset();
-            signupForm.classList.remove("was-validated");
-
-            if (window.DTDialog && typeof window.DTDialog.success === "function") {
-                window.DTDialog.success(message, { autoClose: 1600 });
-            }
-
-            const params = new URLSearchParams({
-                mode: "new_user_email",
-                user_id: userId,
-                method: "email",
-                delever_to: email,
-                email_verification_token: emailVerificationToken
-            });
-            setTimeout(() => {
-                window.location.href = `/verification?${params.toString()}`;
-            }, 800);
-        } catch (err) {
-            const message = err?.message || "Signup failed";
-            setError(message);
-            if (window.DTDialog && typeof window.DTDialog.error === "function") {
-                window.DTDialog.error(message);
-            }
-        } finally {
-            setLoading(false);
-        }
-    });
-
-    function googleSignUp() {
-        const message = "Google signup is not available. Please try again.";
-        if (window.DTDialog && typeof window.DTDialog.error === "function") {
-            window.DTDialog.error(message);
-            return;
-        }
-        alert(message);
-    }
-
-    function facebookSignUp() {
-        const message = "Facebook signup is not available. Please try again.";
-        if (window.DTDialog && typeof window.DTDialog.error === "function") {
-            window.DTDialog.error(message);
-            return;
-        }
-        alert(message);
-    }
-</script>
+    </script>
 </body>
 </html>

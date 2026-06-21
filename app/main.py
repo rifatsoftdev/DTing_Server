@@ -108,28 +108,28 @@ def startup_event():
 @app.on_event("shutdown")
 def shutdown_event():
     exit_code = 1
-    exit_code = os.system("find . -type d -name \"__pycache__\" -exec rm -rf {} +")
+    # exit_code = os.system("find . -type d -name \"__pycache__\" -exec rm -rf {} +")
     print(f"{AnsiColor.BLUE}INFO:{AnsiColor.RESET}     Shutting down application... Cleaning up resources exit code {exit_code}")
 
 
 # Custom exception handlers
-@app.exception_handler(404)
-async def custom_404_handler(request: Request, exc: HTTPException):
-    message = exc.detail if getattr(exc, "detail", None) else "Not Found"
+# @app.exception_handler(404)
+# async def custom_404_handler(request: Request, exc: HTTPException):
+#     message = exc.detail if getattr(exc, "detail", None) else "Not Found"
 
-    return HTMLResponse(
-        content=templates.get_template("server/404.html").render(request=request, message=message),
-        status_code=status.HTTP_404_NOT_FOUND
-    )
+#     return HTMLResponse(
+#         content=templates.get_template("server/404.html").render(request=request, message=message),
+#         status_code=status.HTTP_404_NOT_FOUND
+#     )
 
 
 # Custom exception handlers
-@app.exception_handler(Exception)
-async def server_exception_handler(request: Request, exc: Exception):
-    return HTMLResponse(
-        content=templates.get_template("server/500.html").render(request=request, message=str(exc)),
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-    )
+# @app.exception_handler(Exception)
+# async def server_exception_handler(request: Request, exc: Exception):
+#     return HTMLResponse(
+#         content=templates.get_template("server/500.html").render(request=request, message=str(exc)),
+#         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+#     )
 
 
 
@@ -141,6 +141,17 @@ async def root(
     request: Request,
     authorization: str = Header(None)
 ):
+    # print(type(ENV.ALLOWED_AUDIENCES))
+    # print("\n===== REQUEST INFO =====")
+    # print("Client IP:", request.client.host)
+
+    # print("\nHeaders:")
+    # for key, value in request.headers.items():
+    #     print(f"{key}: {value}")
+
+    # print("\nUser-Agent:")
+    # print(request.headers.get("user-agent"))
+    
     return GlobalResponse(
         status_code=status.HTTP_200_OK,
         success=True,

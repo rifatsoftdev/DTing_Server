@@ -114,7 +114,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             self.db.refresh(session)
 
             # Generate tokens
-            access_token = self._create_token(
+            access_token, _ = self._create_token(
                 token_type="access",
                 expire_min=ENV.ACCESS_EXPIRE,
                 data={
@@ -123,20 +123,24 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                     "role": admin.role,
                     "permissions": permissions,
                     "device_id": device_id,
-                    "device_uuid": device_uuid
+                    "device_uuid": device_uuid,
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": ENV.ALLOWED_AUDIENCES,
                 }
             )
         
-            refresh_token = self._create_token(
+            refresh_token, _ = self._create_token(
                 token_type="refresh",
-                expire_min=ENV.REFRESH_EXPIRE,
+                expire_day=ENV.REFRESH_EXPIRE,
                 data={
                     "admin_id": admin.admin_id,
                     "email_address": admin.email,
                     "role": admin.role,
                     "permissions": permissions,
                     "device_id": device_id,
-                    "device_uuid": device_uuid
+                    "device_uuid": device_uuid,
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": [f"auth.{ENV.MAIN_DOMAIN}"],
                 }
             )
             
@@ -299,7 +303,11 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 )
 
             # Decode the refresh token
-            payload = self._decode_token(refresh_token)
+            payload = self._decode_token(
+                refresh_token,
+                audience=f"auth.{ENV.MAIN_DOMAIN}",
+                issuer=f"auth.{ENV.MAIN_DOMAIN}"
+            )
             
             if not payload:
                 raise HTTPException(
@@ -361,7 +369,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             permissions = ROLE_PERMISSIONS.get(AdminRole(admin.role), [])
 
             # Generate new tokens
-            access_token: str = self._create_token(
+            access_token, _ = self._create_token(
                 token_type="access",
                 expire_min=ENV.ACCESS_EXPIRE,
                 data={
@@ -370,11 +378,13 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                     "role": admin.role,
                     "permissions": permissions,
                     "device_id": device_id or payload.get("device_id"),
-                    "device_uuid": device_uuid or payload.get("device_uuid")
+                    "device_uuid": device_uuid or payload.get("device_uuid"),
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": ENV.ALLOWED_AUDIENCES,
                 }
             )
 
-            new_refresh_token: str = self._create_token(
+            new_refresh_token, _ = self._create_token(
                 token_type="refresh",
                 expire_day=ENV.REFRESH_EXPIRE,
                 data={
@@ -383,7 +393,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                     "role": admin.role,
                     "permissions": permissions,
                     "device_id": device_id or payload.get("device_id"),
-                    "device_uuid": device_uuid or payload.get("device_uuid")
+                    "device_uuid": device_uuid or payload.get("device_uuid"),
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": [f"auth.{ENV.MAIN_DOMAIN}"],
                 }
             )
 

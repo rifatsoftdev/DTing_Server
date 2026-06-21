@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Header, Query
+from fastapi import APIRouter, Depends, BackgroundTasks, Header, Query, Request, Response
 from fastapi.responses import HTMLResponse
-from fastapi.requests import Request
+# from fastapi.requests import Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -84,6 +84,7 @@ async def veryfy_new_user_email(
 async def signin(
     payload: LoginRequest,
     request: Request,
+    response: Response,
     background_tasks: BackgroundTasks,
     _: None = Depends(signin_rate_limit),
     authorization: str = Header(None),
@@ -97,7 +98,7 @@ async def signin(
         authorization=authorization
     )
 
-    return accountServices.signin(payload=payload)
+    return accountServices.signin(payload=payload, response=response)
 
 
 

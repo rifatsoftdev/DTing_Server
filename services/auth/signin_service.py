@@ -1,6 +1,9 @@
+import random
+import string
+
 from datetime import timedelta
 
-from fastapi import BackgroundTasks, HTTPException, Request, status, Header
+from fastapi import BackgroundTasks, HTTPException, Request, Response, status, Header
 from sqlalchemy.orm import Session
 
 from app.constants import AnsiColor, String, ENV
@@ -57,7 +60,8 @@ class SigninService(TokenGenerators, UserRepository):
     # This will log in the user and create a session. If 2FA is enabled, it will return a response indicating that 2FA verification is required. If 2FA is not enabled, it will return the access token and refresh token.
     def signin(
         self, 
-        payload: LoginRequest
+        payload: LoginRequest,
+        response: Response
     ) -> GlobalResponse:
         try:
             # Step 0: Get data from request
@@ -69,7 +73,7 @@ class SigninService(TokenGenerators, UserRepository):
             device_uuid: str = payload.device_uuid
             
             ip: str = self.request.client.host if self.request and self.request.client else None
-            
+            client_type = self.request.headers.get("X-Client-Type", "").lower()
 
             # Step 1: Find user by email or phone
             user: UserTable = self.check_user_already_exists(
@@ -159,22 +163,24 @@ class SigninService(TokenGenerators, UserRepository):
                 for method, method_type in zip(enabled_tfa_methods, two_factor_method_names)
             ]
             is_2fa_required = bool(two_factor_method_names)
-
+            
             if not is_2fa_required:
                 token_data = {
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,
-                    "device_uuid": device_uuid
+                    "device_uuid": device_uuid,
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": ENV.ALLOWED_AUDIENCES,
                 }
-
-                access_token = self._create_token(
+                
+                access_token, _ = self._create_token(
                     token_type=String.ACCESS_TOKEN,
                     expire_min=ENV.ACCESS_EXPIRE,
                     data=token_data
                 )
-
-                refresh_token = self._create_token(
+                
+                refresh_token, _ = self._create_token(
                     token_type=String.REFRESH_TOKEN,
                     expire_day=ENV.REFRESH_EXPIRE,
                     data=token_data
@@ -187,7 +193,7 @@ class SigninService(TokenGenerators, UserRepository):
                 SessionTable.device_id == device_id,
                 SessionTable.device_uuid == device_uuid
             ).first()
-
+            
             if session:
                 session.access_token_hash = Hashing.create_hash(access_token) if access_token else None
                 session.refresh_token_hash = Hashing.create_hash(refresh_token) if refresh_token else None
@@ -197,6 +203,8 @@ class SigninService(TokenGenerators, UserRepository):
                 session.is_login = not is_2fa_required
                 session.otp_verified = not is_2fa_required
             else:
+                chars = string.ascii_letters + string.digits 
+                
                 session = SessionTable(
                     user_id=user.user_id,
                     fcm_token=None,
@@ -212,7 +220,7 @@ class SigninService(TokenGenerators, UserRepository):
                 self.db.add(session)
                 self.db.flush()
 
-
+            
             # Step 7: Create notification record
             new_notification = NotificationTable(
                 target_id=user.user_id,
@@ -250,13 +258,13 @@ class SigninService(TokenGenerators, UserRepository):
 
             # Step 9: Finalize database changes
             self.db.commit()
-            self.db.refresh(session)
+            # self.db.refresh(session)
             self.db.refresh(new_notification)
-
+            
 
             # Step 10: Handle 2FA or direct login response
             if is_2fa_required:
-                request_token: str = self._create_token(
+                request_token, _ = self._create_token(
                     token_type="otp_token",
                     expire_min=5,
                     data={
@@ -295,6 +303,44 @@ class SigninService(TokenGenerators, UserRepository):
                     }
                 )
 
+            
+            if client_type == "web":
+                response.set_cookie(
+                    key="access_token",
+                    value=access_token,
+                    httponly=True,
+                    secure=True,
+                    samesite="strict",
+                    domain=f".{ENV.MAIN_DOMAIN}",            # fix: subdomain shobgulote share korar jonno
+                    max_age=ENV.ACCESS_EXPIRE * 60,          # fix: minute -> second e convert kora
+                    path="/"
+                )
+                response.set_cookie(
+                    key="refresh_token",
+                    value=refresh_token,
+                    httponly=True,
+                    secure=True,
+                    samesite="strict",
+                    domain=f".{ENV.MAIN_DOMAIN}",            # fix: subdomain shobgulote share korar jonno
+                    max_age=ENV.REFRESH_EXPIRE_DAYS * 86400, # fix: din -> second e convert kora (1 din = 86400 sec)
+                    path="/api/auth/refresh"
+                )
+            
+                return GlobalResponse(
+                    status_code=status.HTTP_200_OK,
+                    success=True,
+                    action="login",
+                    message="Login successful",
+                    data={
+                        "requires_2fa": False,
+                        "user_id": user.user_id,
+                        "token_type": "bearer",
+                        "expires_in": ENV.ACCESS_EXPIRE * 60,   # consistency: ekhane o second e rakha better
+                        "email_address": user.email_address,
+                        "phone_number": f"{user.country_code or ''}{user.phone_number or ''}" or None
+                    },
+                    next_step={}
+                )
 
             # Step 11: Return Direct Login Response
             return GlobalResponse(

@@ -20,6 +20,7 @@ class ENV:
     ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
     PRIVATE_KEY_PATH: str = os.getenv("PRIVATE_KEY_PATH")
     PUBLIC_KEY_PATH: str = os.getenv("PUBLIC_KEY_PATH")
+    ALLOWED_AUDIENCES: list = os.getenv("ALLOWED_AUDIENCES").split(",")
 
     # Service Charge configuration
     SERVICE_CHARGE: float = float(os.getenv("SERVICE_CHARGE", "1.0"))
@@ -53,6 +54,9 @@ class ENV:
     OTP_TOKEN_EXPIRE_MIN: int = int(os.getenv("OTP_TOKEN_EXPIRE_MIN", "5"))
     PASS_RST_TOKEN_EXPIRE_MIN: int = int(os.getenv("PASS_RST_TOKEN_EXPIRE_MIN", "15"))
 
+    REFRESH_EXPIRE_DAYS:int = int(os.getenv("REFRESH_EXPIRE", "1440"))
+
+
     # Redis configuration
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     EMAIL_QUEUE_NAME: str = os.getenv("EMAIL_QUEUE_NAME", "email_queue")
@@ -85,6 +89,8 @@ class ENV:
     DEFAULT_USER_NAME: str = os.getenv("DEFAULT_USER_NAME", "DTing")
 
     # Other Server URL
+    MAIN_DOMAIN: str = os.getenv("MAIN_DOMAIN", "")
+    AUTH_SERVER_URL: str = os.getenv("AUTH_SERVER_URL", "")
     VIRELIX_SERVER_URL: str = os.getenv("VIRELIX_SERVER_URL", "")
     DTUBE_SERVER_URL: str = os.getenv("DTUBE_SERVER_URL", "")
     

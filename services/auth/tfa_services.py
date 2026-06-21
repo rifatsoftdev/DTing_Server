@@ -252,7 +252,7 @@ class TFAServices(TokenGenerators):
                 self.db.flush()
             
             # Step 3: Generate OTP and Token
-            otp_token = self._create_token(
+            otp_token, _ = self._create_token(
                 data={
                     "method": "email_tfa",
                     "user_id": user.user_id,
@@ -351,6 +351,7 @@ class TFAServices(TokenGenerators):
             if not otp_record:
                 raise HTTPException(status_code=404, detail=String.OTP_NOT_FOUND)
 
+            # Decode token without strict audience/issuer validation for OTP tokens
             token_payload = self._decode_token(payload.otp_token)
 
             if token_payload is None:
@@ -463,7 +464,7 @@ class TFAServices(TokenGenerators):
                 self.db.delete(old_otp)
                 self.db.flush()
 
-            otp_token = self._create_token(
+            otp_token, _ = self._create_token(
                 data={
                     "method": "sms_tfa",
                     "user_id": user.user_id,
@@ -532,6 +533,7 @@ class TFAServices(TokenGenerators):
             if not otp_record:
                 raise HTTPException(status_code=404, detail=String.OTP_NOT_FOUND)
 
+            # Decode token without strict audience/issuer validation for OTP tokens
             token_payload = self._decode_token(payload.otp_token)
             if token_payload is None:
                 raise HTTPException(status_code=401, detail=String.TIME_LIMET_EXPAIRE)

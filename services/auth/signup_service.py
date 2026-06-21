@@ -203,7 +203,7 @@ class RegistrationService(UserRepository, TokenGenerators):
         otp: str = Generators.generate_otp()
         email_sent: bool = False
 
-        email_verification_token: str = self._create_token(
+        email_verification_token, _ = self._create_token(
             token_type=String.EMAIL_VERIFICATION_TOKEN,
             expire_min=ENV.OTP_TOKEN_EXPIRE_MIN,
             data={
@@ -357,16 +357,18 @@ class RegistrationService(UserRepository, TokenGenerators):
                 "user_id": user.user_id,
                 "email_address": user.email_address,
                 "device_id": payload.device_id,
-                "device_uuid": payload.device_uuid
+                "device_uuid": payload.device_uuid,
+                "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                "aud": ENV.ALLOWED_AUDIENCES,
             }
 
-            access_token = self._create_token(
+            access_token, _ = self._create_token(
                 token_type=String.ACCESS_TOKEN,
                 expire_min=ENV.ACCESS_EXPIRE,
                 data=token_data
             )
 
-            refresh_token = self._create_token(
+            refresh_token, _ = self._create_token(
                 token_type=String.REFRESH_TOKEN,
                 expire_day=ENV.REFRESH_EXPIRE,
                 data=token_data

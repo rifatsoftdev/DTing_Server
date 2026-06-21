@@ -1,13 +1,15 @@
+import { get_device_id, get_device_uuid } from './utils.js';
+import { ApiClient } from "./ApiClient.js";
+
+
+// api.get("/users").then(data => {
+//     console.log(data);
+// });
+
 
 // Website base url
 const BASE_URL = window.location.origin;
-
-
-function resolveDeviceIdentity() {
-    const device_id = (typeof getDeviceId === "function") ? getDeviceId() : "web_device_id";
-    const device_uuid = (typeof getDeviceUuid === "function") ? getDeviceUuid() : "web_device_uuid";
-    return { device_id, device_uuid };
-}
+const api = new ApiClient(BASE_URL);
 
 
 async function parseResponseError(response) {
@@ -36,39 +38,59 @@ async function parseResponseError(response) {
 }
 
 // login with email/phone + password
-async function loginUser({
+async function loginUser(api, {
     email_address = null,
     phone_number = null,
     country_code = null,
     user_password
 }) {
-    const url = `${BASE_URL}/auth/login`;
-    const { device_id, device_uuid } = resolveDeviceIdentity();
-    const data = {
+    const device_id = get_device_id();
+    const device_uuid = get_device_uuid();
+
+    const payload = {
         email_address,
         phone_number,
         country_code,
         user_password,
-        device: "web",
         device_id,
         device_uuid
     };
 
-    const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-        const message = await parseResponseError(response);
-        throw new Error(message);
-    }
-    const raw = await response.text();
     try {
-        return raw ? JSON.parse(raw) : {};
-    } catch (_) {
-        throw new Error("Server returned non-JSON response. Check backend logs/routes.");
+        const data = await api.post("/auth/login", payload, {
+            credentials: "include",              // MUST - cookie pathano/grohon korar jonno
+            headers: {
+                "X-Client-Type": "web"           // backend ke bujhano je eta web request, body e na cookie e token jabe
+            }
+        });
+
+        const action = data?.action;
+        const result = data?.data;
+
+        if (action === "login") {
+            // ✅ Cookie already backend e set hoye gেছে (HttpOnly access_token + refresh_token)
+            // localStorage ba api.setTokens() kichui lagbe na - browser nijei cookie pathabe
+            console.log("login");
+            window.location.href = "/profile.html";
+        }
+
+        else if (action === "verify_email") {
+            console.log("verify_email");
+            window.location.href = `/verify-email.html?email=${result.email_address}`;
+        }
+
+        else if (action === "2fa_verification_required") {
+            console.log("2fa_verification_required");
+            window.location.href = `/otp.html?user_id=${result.user_id}`;
+        }
+
+        else {
+            console.warn("Unknown action:", action);
+        }
+
+    } catch (error) {
+        console.error("Login error:", error.message);
+        throw error;
     }
 }
 

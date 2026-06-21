@@ -279,6 +279,9 @@ class UserServices:
 
     # a function of get user profile information
     def get_profile(self):
+        # user: UserTable = self.request.state.current_user
+        # print(user)
+
         try:
             # Step 1: Extract and validate access token
             userVerificationService = UserVerificationService(

@@ -209,13 +209,15 @@ class AccountServices(OTPService, SigninService):
 
 
             # Step 4: Generate new access token
-            access_token = self._create_token(
+            access_token, _ = self._create_token(
                 expire_min=ENV.ACCESS_EXPIRE,
                 data={
                     "user_id": payload.get("user_id"),
                     "email_address": payload.get("email_address"),
                     "android_id": payload.get("android_id"),
-                    "android_uuid": payload.get("android_uuid")
+                    "android_uuid": payload.get("android_uuid"),
+                    "iss": f"auth.{ENV.MAIN_DOMAIN}",
+                    "aud": ENV.ALLOWED_AUDIENCES,
                 }
             )
 
