@@ -22,23 +22,22 @@ class TokenGenerators:
 
     def _create_token(
         self,
-        data: dict,
-        token_type: str = "access",
+        payload: dict,
         expire_day: float = 0,
         expire_min: float = 0
     ) -> tuple[str, str]:
-        to_encode = data.copy()
+        to_encode = payload.copy()
         expire = datetime.utcnow() + timedelta(days=expire_day, minutes=expire_min)
         jti = str(uuid.uuid4())   # unique token id - revoke/rotation track korar jonno
 
         to_encode.update({
             "exp": expire,
-            "type": token_type,
             "jti": jti,
         })
 
         token = jwt.encode(to_encode, self.PRIVATE_KEY, algorithm=self.ALGORITHM)
-        return token, jti   # jti return korlam, DB e save korar jonno proyojon hobe
+
+        return token, jti
 
     def _decode_token(
         self,
@@ -47,32 +46,40 @@ class TokenGenerators:
         issuer: str | None = None
     ):
         try:
+            if not token:
+                return None
+            
             decode_kwargs = {
                 "key": self.PUBLIC_KEY,
                 "algorithms": [self.ALGORITHM],
+                "options": {
+                    "verify_aud": False
+                }
             }
             
             if issuer is not None:
                 decode_kwargs["issuer"] = issuer
 
-            # Skip audience validation in jwt.decode() when audience is a multi-item list
-            # python-jose doesn't support list audience validation
             if audience is not None and isinstance(audience, list) and len(audience) > 1:
-                # Don't pass audience to jwt.decode - validate manually after
                 pass
+
             elif audience is not None:
                 decode_kwargs["audience"] = audience
 
+            # print(type(audience))
+            # print(audience)
+            # print(decode_kwargs)
             payload = jwt.decode(token, **decode_kwargs)
-            
-            print(f"{AnsiColor.CYAN}DEBUG{AnsiColor.RESET}:     audience param: {audience}, payload aud: {payload.get('aud')}")
             
             if audience is not None and isinstance(audience, list) and len(audience) > 1:
                 token_aud = payload.get("aud", [])
+
                 if isinstance(token_aud, str):
                     token_aud = [token_aud]
+
                 expected_audiences = set(audience)
                 token_audiences = set(token_aud)
+
                 if not expected_audiences.intersection(token_audiences):
                     raise JWTError("Invalid audience")
 
@@ -99,6 +106,7 @@ class TokenService(TokenGenerators):
 
     def create_access_token(self, user_id: str, device_id: str, device_uuid: str) -> str:
         payload = {
+            "token_type": "access",
             "user_id": user_id,
             "device_id": device_id,
             "device_uuid": device_uuid,
@@ -106,15 +114,16 @@ class TokenService(TokenGenerators):
             "aud": ENV.ALLOWED_AUDIENCES,        # access token -> সব authorized service e valid
             "iat": datetime.utcnow(),
         }
-        token, _ = self._create_token(
-            data=payload,
-            token_type="access",
+        token, jti = self._create_token(
+            payload=payload,
             expire_min=ENV.ACCESS_EXPIRE
         )
+
         return token
 
     def create_refresh_token(self, user_id: str, device_id: str, device_uuid: str) -> str:
         payload = {
+            "token_type": "refresh",
             "user_id": user_id,
             "device_id": device_id,
             "device_uuid": device_uuid,
@@ -123,8 +132,7 @@ class TokenService(TokenGenerators):
             "iat": datetime.utcnow(),
         }
         token, jti = self._create_token(
-            data=payload,
-            token_type="refresh",
+            payload=payload,
             expire_day=ENV.REFRESH_EXPIRE
         )
 
@@ -144,12 +152,17 @@ class TokenService(TokenGenerators):
         return token
 
     def verify_access_token(self, token: str) -> dict | None:
+        if not token:
+            print(1)
+            return None
+        
         payload = self._decode_token(
             token,
-            audience=ENV.ALLOWED_AUDIENCES,
-            issuer=f"auth.{ENV.MAIN_DOMAIN}",
+            audience=ENV.ALLOWED_AUDIENCES if ENV.DEBUG else None,
+            issuer=f"auth.{ENV.MAIN_DOMAIN}" if ENV.DEBUG else None,
         )
-        if payload and payload.get("type") == "access":
+        
+        if payload and payload.get("token_type") == "access":
             return payload
         
         return None
@@ -157,11 +170,11 @@ class TokenService(TokenGenerators):
     def verify_refresh_token(self, token: str) -> dict | None:
         payload = self._decode_token(
             token,
-            audience=f"auth.{ENV.MAIN_DOMAIN}",
-            issuer=f"auth.{ENV.MAIN_DOMAIN}",
+            audience=f"auth.{ENV.MAIN_DOMAIN}" if ENV.DEBUG else None,
+            issuer=f"auth.{ENV.MAIN_DOMAIN}" if ENV.DEBUG else None,
         )
 
-        if not payload or payload.get("type") != "refresh":
+        if not payload or payload.get("token_type") != "refresh":
             return None
 
         # ---- DB e check kora -> revoked hoyeche ki na ----

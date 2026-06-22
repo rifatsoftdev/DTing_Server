@@ -15,26 +15,6 @@ me_router = APIRouter()
 
 
 
-# ==============================================================================
-
-@me_router.get("", response_model=GlobalResponse)
-@me_router.get("/", response_model=GlobalResponse)
-async def me(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    userServices = UserServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return userServices.get_me()
-
-
 
 
 # ==============================================================================
@@ -277,6 +257,10 @@ async def security_center(
     )
 
     return userServices.get_security_center()
+
+
+
+
 
 
 # ==============================================================================

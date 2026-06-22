@@ -22,7 +22,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.public_paths = public_paths or []
 
     async def dispatch(self, request, call_next):
-
+        return await call_next(request)
+    
         if (
             request.method == "OPTIONS"
             or self._is_public_path(request.url.path)
@@ -31,14 +32,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_type = request.headers.get("X-Client-Type")
-
-        # fallback detection (UA sniffing) - eta easily spoof kora jay,
-        # tai eta sirf "helper", actual security na. Real security er
-        # jonno X-Client-Signature (HMAC) approach use korar kotha
-        # already aagei discuss hoyeche - shei layer aagei add korben.
         ua = request.headers.get("user-agent", "").lower()
-        session = request.cookies.get("session")
-        
+
+        # print(client_type)
+        # print(ua)
 
         if not client_type:
             if "okhttp" in ua:
@@ -51,30 +48,40 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.client_type = client_type
 
         # BLOCK unknown clients
-        if client_type not in ["android", "web"]:
-            return JSONResponse(
-                status_code=403,
-                content={"message": "Invalid client"}
-            )
+        # if client_type not in ["android", "web"]:
+        #     return JSONResponse(
+        #         status_code=403,
+        #         content={"message": "Invalid client"}
+        #     )
 
         # ============================================================
         # Client type onujayi token kothai theke nibo shetai thik kora
         # ============================================================
-        token: str | None = None
+        access_token: str | None = None
 
-        if client_type == "android":
-            # App -> Authorization header e Bearer token
-            authorization = request.headers.get("authorization")
-            if authorization and authorization.lower().startswith("bearer "):
-                token = authorization.split(" ", 1)[1].strip()
-
-        elif client_type == "web":
+        if client_type == "web":
             # Web -> Cookie e token (cookie naam apnar login flow er
             # cookie set korar shomoy ja diyechen, shetar shathe match
             # korben. ekhane "access_token" placeholder, replace korben.)
-            token = request.cookies.get("access_token")
+            access_token: str = request.cookies.get("access_token")
+            print(access_token)
+            if access_token:
+                # Add authorization header for downstream handlers
+                request.headers.__dict__["_list"].append(
+                    (b"Authorization", f"Bearer {access_token}".encode())
+                )
+        
+        if client_type == "android":
+            print("android")
+            # App -> Authorization header e Bearer token
+            authorization = request.headers.get("Authorization")
+            print(authorization)
+            if authorization and authorization.lower().startswith("Bearer "):
+                token = authorization.split(" ", 1)[1].strip()
 
-        if not token:
+        
+
+        if not access_token:
             return self._unauthorized(
                 "Missing authentication token",
                 status_code=status.HTTP_401_UNAUTHORIZED
@@ -89,7 +96,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         try:
             userVerificationService = UserVerificationService(
                 db=db,
-                authorization=f"Bearer {token}"
+                authorization=f"Bearer {access_token}"
             )
 
             user: UserTable = userVerificationService.verify_user_authorization()
@@ -99,6 +106,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             detail = getattr(exc, "detail", "Invalid or Expired Token")
             message = detail if isinstance(detail, str) else str(detail)
             return self._unauthorized(message, status_code=status_code)
+        
         finally:
             db.close()
 

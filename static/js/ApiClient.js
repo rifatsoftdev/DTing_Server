@@ -43,7 +43,8 @@ export class ApiClient {
             // TOKEN_MISSING / DEVICE_MISMATCH / refresh fail / retry already use hoyeche
             // -> shorashori login e pathiye dewa, refresh try korar dorkar nei
             console.warn("Auth failed:", errorCode || errBody?.message);
-            window.location.href = "/login.html";
+            window.location.href = "/login";
+            
             return null;
         }
 

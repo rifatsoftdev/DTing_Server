@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Header, Request, HTTPException, status
+from fastapi import APIRouter, Header, Request, HTTPException, status, BackgroundTasks, Depends
+from sqlalchemy.orm import Session
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
+from app.core.database import get_db
 from app.utils.helpers import Helpers
 from app.schema import GlobalResponse
+from services.auth.token_service import TokenService
 
 
 
@@ -42,8 +45,26 @@ def terms_page(request: Request):
 # ==============================================================================
 
 @template_router.get("/login", tags=["UI"], response_class=HTMLResponse)
-def login_page(request: Request):
+def login_page(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
     """Login page"""
+    access_token: str = request.cookies.get("access_token")
+    # print(request.cookies)
+
+    tokenService = TokenService(
+        request=request,
+        background_tasks=background_tasks,
+        authorization=authorization,
+        db=db
+    )
+
+    # if tokenService.verify_access_token(access_token):
+    #     return RedirectResponse("/account")
+    
     return templates.TemplateResponse("user/user_login.html", {"request": request})
 
 
@@ -74,8 +95,26 @@ def verification_page(request: Request):
 # ==============================================================================
 
 @template_router.get("/account", tags=["UI"], response_class=HTMLResponse)
-def account_page(request: Request):
-    """Account management page"""
+def account_page(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    access_token: str = request.cookies.get("access_token")
+    print(access_token)
+    
+    tokenService = TokenService(
+        request=request,
+        background_tasks=background_tasks,
+        authorization=authorization,
+        db=db
+    )
+
+    if not tokenService._decode_token(access_token):
+        print(tokenService._decode_token(access_token))
+        return RedirectResponse("/login")
+    
     return templates.TemplateResponse("user/account.html", {"request": request})
 
 

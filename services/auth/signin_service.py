@@ -165,9 +165,9 @@ class SigninService(TokenGenerators, UserRepository):
             is_2fa_required = bool(two_factor_method_names)
             
             if not is_2fa_required:
-                token_data = {
+                payload = {
+                    "token_type": String.ACCESS_TOKEN,
                     "user_id": user.user_id,
-                    "email_address": user.email_address,
                     "device_id": device_id,
                     "device_uuid": device_uuid,
                     "iss": f"auth.{ENV.MAIN_DOMAIN}",
@@ -175,15 +175,14 @@ class SigninService(TokenGenerators, UserRepository):
                 }
                 
                 access_token, _ = self._create_token(
-                    token_type=String.ACCESS_TOKEN,
                     expire_min=ENV.ACCESS_EXPIRE,
-                    data=token_data
+                    payload=payload
                 )
-                
+
+                payload["token_type"] = String.REFRESH_TOKEN
                 refresh_token, _ = self._create_token(
-                    token_type=String.REFRESH_TOKEN,
                     expire_day=ENV.REFRESH_EXPIRE,
-                    data=token_data
+                    payload=payload
                 )
             
 
@@ -203,8 +202,6 @@ class SigninService(TokenGenerators, UserRepository):
                 session.is_login = not is_2fa_required
                 session.otp_verified = not is_2fa_required
             else:
-                chars = string.ascii_letters + string.digits 
-                
                 session = SessionTable(
                     user_id=user.user_id,
                     fcm_token=None,
@@ -265,9 +262,9 @@ class SigninService(TokenGenerators, UserRepository):
             # Step 10: Handle 2FA or direct login response
             if is_2fa_required:
                 request_token, _ = self._create_token(
-                    token_type="otp_token",
                     expire_min=5,
-                    data={
+                    payload={
+                        "token_type": "otp_token",
                         "user_id": user.user_id,
                         "device_id": device_id,
                         "device_uuid": device_uuid,
@@ -311,7 +308,7 @@ class SigninService(TokenGenerators, UserRepository):
                     httponly=True,
                     secure=False,  # production হলে True + HTTPS
                     samesite="lax",
-                    domain=f".{ENV.MAIN_DOMAIN}",
+                    domain=None if ENV.DEBUG  else f".{ENV.MAIN_DOMAIN}",
                     max_age=ENV.ACCESS_EXPIRE * 60,
                     path="/"
                 )
@@ -321,11 +318,12 @@ class SigninService(TokenGenerators, UserRepository):
                     httponly=True,
                     secure=False,
                     samesite="strict",
-                    domain=f".{ENV.MAIN_DOMAIN}",            # fix: subdomain shobgulote share korar jonno
+                    domain=None if ENV.DEBUG  else f".{ENV.MAIN_DOMAIN}",            # fix: subdomain shobgulote share korar jonno
                     max_age=ENV.REFRESH_EXPIRE_DAYS * 86400, # fix: din -> second e convert kora (1 din = 86400 sec)
                     path="/api/auth/refresh"
                 )
 
+                # print(response.headers)
                 return GlobalResponse(
                     status_code=status.HTTP_200_OK,
                     success=True,
@@ -370,20 +368,13 @@ class SigninService(TokenGenerators, UserRepository):
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
 
-    # This will log out the user from the current device only
+# This will log out the user from the current device only
     def logout(
         self, 
         payload: LogoutRequest
     ) -> GlobalResponse:
         try:
-            # Step 0: Extract data from payload and verify user
-            user_id: str = payload.user_id
-            access_token: str = payload.access_token
-            device_id: str = payload.device_id
-            device_uuid: str = payload.device_uuid
-
-
-            # Step 1: Verify user session and identity
+            # Step 1: Verify user session and identity (via middleware-validated cookie)
             user_verification_service = UserVerificationService(
                 db=self.db,
                 background_tasks=self.background_tasks,
@@ -393,14 +384,20 @@ class SigninService(TokenGenerators, UserRepository):
 
             user: UserTable = user_verification_service.verify_user_authorization()
 
-
-            # Step 2: Find and update the current session
-            session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user_id,
-                SessionTable.device_id == device_id,
-                SessionTable.device_uuid == device_uuid,
-                SessionTable.is_login == True
-            ).first()
+            # Step 2: Find and update the current session using token from cookie
+            access_token = self.request.cookies.get("access_token")
+            if access_token:
+                token_hash = Hashing.create_hash(access_token)
+                session = self.db.query(SessionTable).filter(
+                    SessionTable.access_token_hash == token_hash,
+                    SessionTable.is_login == True
+                ).first()
+            else:
+                # Fallback: find any active session for user
+                session = self.db.query(SessionTable).filter(
+                    SessionTable.user_id == user.user_id,
+                    SessionTable.is_login == True
+                ).first()
 
             if not session:
                 raise HTTPException(
@@ -413,7 +410,6 @@ class SigninService(TokenGenerators, UserRepository):
             session.is_login = False
             session.fcm_token = None
             session.logout_at = Helpers.utc6dhaka()
-            
 
             # Step 3: Finalize database changes
             self.db.commit()

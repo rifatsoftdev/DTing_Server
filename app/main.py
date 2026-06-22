@@ -27,6 +27,7 @@ from app.router.feedback_router import feedback_router
 from app.router.history_router import history_router
 from app.router.notify_router import notyfy_router
 from app.router.offer_router import offer_router
+from app.router.seo_router import seo_router
 from app.router.service_router import service_router
 from app.router.template_router import template_router
 from app.router.settings_router import settings_router
@@ -51,7 +52,7 @@ app = FastAPI(
 # Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=ENV.ALLOWED_ORIGINS,  # Allows all origins
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
@@ -65,6 +66,7 @@ app.add_middleware(
         "/country/counties",
         "/admin/login",
         "/admin/refresh-access-token",
+        "/login",
     ],
     protected_prefixes=[
         "/bank",
@@ -74,6 +76,7 @@ app.add_middleware(
         "/donation",
         "/feedback",
         "/history",
+        "/me",
         "/offer",
         "/qr",
         "/recharge",
@@ -281,6 +284,7 @@ app.include_router(feedback_router, prefix="/feedback", tags=["Feedback"])
 app.include_router(history_router, prefix="/history", tags=["Transaction History"])
 app.include_router(notyfy_router, prefix="/ws", tags=["Notifications"])
 app.include_router(offer_router, prefix="/offer", tags=["Offers"])
+app.include_router(seo_router)
 app.include_router(service_router, prefix="/service", tags=["Services"])
 app.include_router(template_router, prefix="", tags=["Templates"])
 app.include_router(settings_router, prefix="/admin/settings", tags=["Admin Settings"])

@@ -168,7 +168,7 @@ class AccountServices(OTPService, SigninService):
             
 
             # Step 2: Verify session and token
-            session = self.db.query(SessionTable).filter(
+            session: SessionTable = self.db.query(SessionTable).filter(
                 SessionTable.device_id == device_id,
                 SessionTable.device_uuid == device_uuid
             ).first()
@@ -188,6 +188,7 @@ class AccountServices(OTPService, SigninService):
 
             # Step 3: Decode and validate refresh token
             payload: dict = self._decode_token(refresh_token)
+            # print(payload)
 
             if payload == None:
                 raise HTTPException(
@@ -195,7 +196,7 @@ class AccountServices(OTPService, SigninService):
                     detail="Refresh Token Expired"
                 )
             
-            if payload.get("type") != "refresh":
+            if payload.get("token_type") != "refresh":
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid Token"
@@ -211,11 +212,11 @@ class AccountServices(OTPService, SigninService):
             # Step 4: Generate new access token
             access_token, _ = self._create_token(
                 expire_min=ENV.ACCESS_EXPIRE,
-                data={
+                payload={
+                    "token_type": String.ACCESS_TOKEN,
                     "user_id": payload.get("user_id"),
-                    "email_address": payload.get("email_address"),
-                    "android_id": payload.get("android_id"),
-                    "android_uuid": payload.get("android_uuid"),
+                    "device_id": device_id,
+                    "device_uuid": device_uuid,
                     "iss": f"auth.{ENV.MAIN_DOMAIN}",
                     "aud": ENV.ALLOWED_AUDIENCES,
                 }

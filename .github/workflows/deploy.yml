@@ -39,7 +39,18 @@ jobs:
             script: |
               cd DTing_Server/
               git pull origin main
+
+              if [ ! -f .env ]; then
+                echo "✗ .env file not found on server. Aborting deploy."
+                exit 1
+              fi
+
               docker stop dting-server || true
               docker rm dting-server || true
               docker build --no-cache -t dting-server .
-              docker run -p 8000:8000 dting-server
+              docker run -d \
+                --name dting-server \
+                --env-file .env \
+                --restart unless-stopped \
+                -p 8000:8000 \
+                dting-server

@@ -17,7 +17,7 @@ class ENV:
     DEBUG: bool = os.getenv("DEBUG", "True") == "True"
     APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:8000")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000")
+    ALLOWED_ORIGINS: list = os.getenv("ALLOWED_AUDIENCES").split(",")
     PRIVATE_KEY_PATH: str = os.getenv("PRIVATE_KEY_PATH")
     PUBLIC_KEY_PATH: str = os.getenv("PUBLIC_KEY_PATH")
     ALLOWED_AUDIENCES: list = os.getenv("ALLOWED_AUDIENCES").split(",")

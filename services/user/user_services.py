@@ -156,8 +156,7 @@ class UserServices:
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-            
-
+    
 
     def add_user_service(self, service_slug: str) -> dict:
         
@@ -283,6 +282,7 @@ class UserServices:
         # print(user)
 
         try:
+            print(self.authorization)
             # Step 1: Extract and validate access token
             userVerificationService = UserVerificationService(
                 db=self.db,
@@ -369,71 +369,6 @@ class UserServices:
                 next_step={}
             )
         
-        except HTTPException:
-            raise
-
-        except Exception as e:
-            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
-            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
-
-    # a function to get all user information (profile)
-    def get_me(self) -> GlobalResponse:
-        try:
-            # Step 1: Extract and validate access token
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            user: UserTable = userVerificationService.verify_user_authorization()
-
-
-            # Step 2: Fetch user data
-            user: UserTable = self.db.query(UserTable).filter(
-                UserTable.user_id == user.user_id
-            ).first()
-
-            if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.USER_NOT_FOUND
-                )
-
-
-            # Step 3: Fetch related data
-            settings: SettingsTable = user.settings
-            kyc: KYCTable = self.db.query(KYCTable).filter(
-                KYCTable.user_id == user.user_id
-            ).first()
-            services = self.get_user_services(self.db, user.user_id)
-
-
-            # Step 4: Return full user data response
-            return GlobalResponse(
-                status_code=status.HTTP_200_OK,
-                success=True,
-                action="me_fetched",
-                message="User data fetched successfully",
-                data={
-                    "profile": {
-                        "user_id": user.user_id,
-                        "full_name": user.full_name,
-                        "username": user.username,
-                        "email_address": user.email_address,
-                        "phone_number": f"{user.country_code or ''}{user.phone_number or ''}",
-                        "country_code": user.country_code,
-                        "gender": self._enum_value(user.user_gender),
-                        "date_of_birth": self._format_date_of_birth(user.date_of_birth),
-                        "phone_verified": user.phone_verified,
-                        "email_verified": user.email_verified,
-                        "profile_picture": user.profile_image_url,
-                        "created_at": user.created_at.isoformat() if user.created_at else None
-                    }
-                }
-            )
-
         except HTTPException:
             raise
 
@@ -598,6 +533,7 @@ class UserServices:
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
 
     # a function to get security center
     def get_security_center(self) -> GlobalResponse:

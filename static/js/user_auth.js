@@ -59,13 +59,10 @@ export async function loginUser(api, {
         device_uuid
     };
 
+    console.log(payload);
+
     try {
-        const data = await api.post("/auth/login", payload, {
-            credentials: "include",              // MUST - cookie pathano/grohon korar jonno
-            headers: {
-                "X-Client-Type": "web"           // backend ke bujhano je eta web request, body e na cookie e token jabe
-            }
-        });
+        const data = await api.post("/auth/login", payload);
 
         const action = data?.action;
         const result = data?.data;

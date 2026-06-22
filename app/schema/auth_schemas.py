@@ -45,10 +45,10 @@ class LoginRequest(BaseModel):
 
 # Schemas for Logout Request
 class LogoutRequest(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None
     access_token: Optional[str] = None
-    device_id: str
-    device_uuid: str
+    device_id: Optional[str] = None
+    device_uuid: Optional[str] = None
 
 
 # Schemas for Registration

@@ -8,11 +8,11 @@ from app.utils.hashing import Hashing
 from app.enums import KYCStatus
 from app.model import UserTable, SettingsTable, SessionTable, AdminTable, KYCTable
 
-from services.auth.token_service import TokenGenerators
+from services.auth.token_service import TokenService
 
 
 
-class UserVerificationService(TokenGenerators):
+class UserVerificationService(TokenService):
     def __init__(
         self,
         db: Session = None,
@@ -24,7 +24,8 @@ class UserVerificationService(TokenGenerators):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
-        super().__init__()
+        super().__init__(db=db, background_tasks=background_tasks, request=request, authorization=authorization)
+        self.__get_authorization()
 
     def __get_admin(self, admin_id: str) -> AdminTable:
         admin: AdminTable = self.db.query(AdminTable).filter(
@@ -112,6 +113,12 @@ class UserVerificationService(TokenGenerators):
 
         return authorization.split(" ")[1]
 
+    def __get_authorization(self):
+        if not self.authorization:
+            access_token: str = self.request.cookies.get("access_token")
+            # print(1, access_token)
+            self.authorization = f"Bearer {access_token}"
+        
 
     # User authorization function
     def verify_user_authorization(
@@ -143,7 +150,7 @@ class UserVerificationService(TokenGenerators):
                     detail=String.INVALID_TOKEN
                 )
 
-            if (payload.get("type") != "access"):
+            if (payload.get("token_type") != "access"):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=String.INVALID_TOKEN_TYPE
