@@ -309,23 +309,23 @@ class SigninService(TokenGenerators, UserRepository):
                     key="access_token",
                     value=access_token,
                     httponly=True,
-                    secure=True,
-                    samesite="strict",
-                    domain=f".{ENV.MAIN_DOMAIN}",            # fix: subdomain shobgulote share korar jonno
-                    max_age=ENV.ACCESS_EXPIRE * 60,          # fix: minute -> second e convert kora
+                    secure=False,  # production হলে True + HTTPS
+                    samesite="lax",
+                    domain=f".{ENV.MAIN_DOMAIN}",
+                    max_age=ENV.ACCESS_EXPIRE * 60,
                     path="/"
                 )
                 response.set_cookie(
                     key="refresh_token",
                     value=refresh_token,
                     httponly=True,
-                    secure=True,
+                    secure=False,
                     samesite="strict",
                     domain=f".{ENV.MAIN_DOMAIN}",            # fix: subdomain shobgulote share korar jonno
                     max_age=ENV.REFRESH_EXPIRE_DAYS * 86400, # fix: din -> second e convert kora (1 din = 86400 sec)
                     path="/api/auth/refresh"
                 )
-            
+
                 return GlobalResponse(
                     status_code=status.HTTP_200_OK,
                     success=True,

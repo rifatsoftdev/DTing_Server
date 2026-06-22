@@ -19,7 +19,7 @@ class LoginRequest(BaseModel):
     email_address: Optional[EmailStr] = None
     phone_number: Optional[str] = None
     country_code: Optional[str] = None
-    user_password: str = Field(..., min_length=1)
+    user_password: str = Field(..., min_length=6)
     device_id: str
     device_uuid: str
     services: Optional[str] = None

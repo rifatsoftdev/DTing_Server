@@ -3,6 +3,7 @@ import { ApiClient } from "./ApiClient.js";
 const BASE_URL = window.location.origin;
 const api = new ApiClient(BASE_URL);
 
+
 async function get_countries() {
     try {
         const response = await api.get("/country/counties");
@@ -14,7 +15,7 @@ async function get_countries() {
     }
 }
 
-async function loadCountries(selectElement) {
+export async function loadCountries(selectElement) {
     try {
         const countries = await get_countries();
         
@@ -39,6 +40,7 @@ async function loadCountries(selectElement) {
         }
     }
 }
+
 
 window.loadCountries = loadCountries;
 window.get_countries = get_countries;

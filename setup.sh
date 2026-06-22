@@ -164,7 +164,7 @@ if [[ $REPLY =~ ^[1]$ ]]; then
     echo ""
     echo -e "🚀 DTin Server is running at:"
     echo -e "   ${GREEN}http://localhost:8000${NC}"
-    echo ""
+    echo ""n
     echo -e "📚 API Documentation:"
     echo -e "   ${GREEN}http://localhost:8000/docs${NC}"
     echo ""

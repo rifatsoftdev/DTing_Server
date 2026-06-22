@@ -37,6 +37,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # jonno X-Client-Signature (HMAC) approach use korar kotha
         # already aagei discuss hoyeche - shei layer aagei add korben.
         ua = request.headers.get("user-agent", "").lower()
+        session = request.cookies.get("session")
+        
 
         if not client_type:
             if "okhttp" in ua:

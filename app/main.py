@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, Request, HTTPException, status
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
@@ -13,6 +13,8 @@ from app.core.database import SessionLocal
 from app.constants import ENV, AnsiColor
 from app.schema.global_schema import GlobalResponse
 from app.middleware.auth_middleware import AuthMiddleware
+from sqlalchemy.orm import Session
+from services.auth.user_verification import UserVerificationService
 
 from admin.router.access_router import admin_access_router
 from admin.router.auth_router import admin_auth_router
@@ -141,29 +143,24 @@ async def root(
     request: Request,
     authorization: str = Header(None)
 ):
-    # print(type(ENV.ALLOWED_AUDIENCES))
-    # print("\n===== REQUEST INFO =====")
-    # print("Client IP:", request.client.host)
-
-    # print("\nHeaders:")
-    # for key, value in request.headers.items():
-    #     print(f"{key}: {value}")
-
-    # print("\nUser-Agent:")
-    # print(request.headers.get("user-agent"))
+    access_token = request.cookies.get("access_token")
     
-    return GlobalResponse(
-        status_code=status.HTTP_200_OK,
-        success=True,
-        action="welcome",
-        message="Welcome to DTing Server.",
-        data={
-            "app": "DTing",
-            "version": ENV.VERSION,
-            "description": "DTIng server authentication system."
-        },
-        next_step={}
-    )
+    if access_token:
+        db: Session = SessionLocal()
+        try:
+            userVerificationService = UserVerificationService(
+                db=db,
+                authorization=f"Bearer {access_token}"
+            )
+            user = userVerificationService.verify_user_authorization()
+            if user:
+                return RedirectResponse("/account")
+        except Exception:
+            pass
+        finally:
+            db.close()
+    
+    return templates.TemplateResponse("server/index.html", {"request": request})
 
 
 

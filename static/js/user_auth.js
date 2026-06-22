@@ -38,14 +38,17 @@ async function parseResponseError(response) {
 }
 
 // login with email/phone + password
-async function loginUser(api, {
+export async function loginUser(api, {
     email_address = null,
     phone_number = null,
     country_code = null,
     user_password
 }) {
     const device_id = get_device_id();
-    const device_uuid = get_device_uuid();
+    const device_uuid = await get_device_uuid();
+
+    // console.log(typeof device_id)
+    // console.log(typeof device_uuid)
 
     const payload = {
         email_address,
@@ -71,17 +74,17 @@ async function loginUser(api, {
             // ✅ Cookie already backend e set hoye gেছে (HttpOnly access_token + refresh_token)
             // localStorage ba api.setTokens() kichui lagbe na - browser nijei cookie pathabe
             console.log("login");
-            window.location.href = "/profile.html";
-        }
-
-        else if (action === "verify_email") {
-            console.log("verify_email");
-            window.location.href = `/verify-email.html?email=${result.email_address}`;
+            window.location.href = "/account";
         }
 
         else if (action === "2fa_verification_required") {
             console.log("2fa_verification_required");
             window.location.href = `/otp.html?user_id=${result.user_id}`;
+        }
+
+        else if (action === "verify_email") {
+            console.log("verify_email");
+            window.location.href = `/verify-email.html?email=${result.email_address}`;
         }
 
         else {
@@ -99,7 +102,10 @@ async function sendOTP({
     delever_to
 }) {
     const url = `${BASE_URL}/auth/send-otp`;
-    const { device_id, device_uuid } = resolveDeviceIdentity();
+
+    const device_id = get_device_id();
+    const device_uuid = get_device_uuid();
+
     const data = {
         method,
         delever_to,
@@ -134,7 +140,8 @@ async function verifyOTP({
     otp_token
 }) {
     const url = `${BASE_URL}/auth/verify-otp`;
-    const { device_id, device_uuid } = resolveDeviceIdentity();
+    const device_id = get_device_id();
+    const device_uuid = get_device_uuid();
     const data = {
         method,
         delever_to,
@@ -186,3 +193,4 @@ function persistAuthSession({
         localStorage.setItem("refresh_token", refresh_token);
     }
 }
+
