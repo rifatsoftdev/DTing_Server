@@ -12,7 +12,6 @@ from app.schema import (
 )
 from app.utils import Hashing, Helpers
 
-from services.auth.user_verification import UserVerificationService
 from services.auth.otp_service import OTPService
 
 from services.auth.user_repository import UserRepository
@@ -83,15 +82,8 @@ class AccountServices(OTPService, SigninService):
             username: str = payload.username.strip()
 
             
-            # Step 2: Verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-
-            user: UserTable = user_verification_service.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
 
             # Step 3: Check if username is already taken by another user
@@ -268,15 +260,8 @@ class AccountServices(OTPService, SigninService):
             fcm_token: str = payload.fcm_token
             
 
-            # Step 2: Verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-
-            user: UserTable = user_verification_service.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
 
             # Step 3: Update current session FCM token
@@ -330,15 +315,8 @@ class AccountServices(OTPService, SigninService):
             ip: str = self.request.client.host
 
 
-            # Step 2: Verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-
-            user: UserTable = user_verification_service.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
 
             # Step 3: check existing delete request
@@ -485,15 +463,8 @@ class AccountServices(OTPService, SigninService):
             user_password: str = payload.user_password
 
 
-            # Step 2: Verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-
-            user: UserTable = user_verification_service.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
 
             # Step 3: Verify password

@@ -35,6 +35,7 @@ class CountryService(TokenGenerators):
         Fetch all countries with ACTIVE status.
         """
         try:
+            # print(self.request.state.current_user)
             country: List[CountryTable] = self.db.query(CountryTable).filter(
                 CountryTable.status == ActivityStatus.ACTIVE
             ).all()

@@ -147,7 +147,7 @@ class UserVerificationService(TokenService):
             if not payload:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.INVALID_TOKEN
+                    detail=String.INVALID_OR_EXPIRED_TOKEN
                 )
 
             if (payload.get("token_type") != "access"):
@@ -262,7 +262,7 @@ class UserVerificationService(TokenService):
                     detail=String.INVALID_TOKEN
                 )
 
-            if (payload.get("type") != "access"):
+            if (payload.get("token_type") != "access"):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=String.INVALID_TOKEN_TYPE
@@ -349,7 +349,7 @@ class UserVerificationService(TokenService):
                 detail="Invalid App Token"
             )
 
-        if (payload.get("type") != "app"):
+        if (payload.get("token_type") != "app"):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=String.INVALID_TOKEN_TYPE

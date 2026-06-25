@@ -57,7 +57,6 @@ class RegistrationService(UserRepository, TokenGenerators):
         device_id: str = None,
         device_uuid: str = None,
         ip: str = None
-        
     ) -> UserTable | None:
         gender = Gender.UNDIFINED
         if user_gender:
@@ -127,11 +126,11 @@ class RegistrationService(UserRepository, TokenGenerators):
 
         return new_user
     
+
     # Signup function
     def signup(self, payload: RegisterRequest) -> GlobalResponse:
         """ Register a user """
         try:
-            
             ip: str = self.request.client.host
 
             # Step 1: Check if user already exists and validate country
@@ -204,9 +203,9 @@ class RegistrationService(UserRepository, TokenGenerators):
         email_sent: bool = False
 
         email_verification_token, _ = self._create_token(
-            token_type=String.EMAIL_VERIFICATION_TOKEN,
             expire_min=ENV.OTP_TOKEN_EXPIRE_MIN,
-            data={
+            payload={
+                "token_type": String.EMAIL_VERIFICATION_TOKEN,
                 "user_id": user.user_id,
                 "email_address": user.email_address,
                 "device_id": device_id,
@@ -290,7 +289,7 @@ class RegistrationService(UserRepository, TokenGenerators):
 
 
     # New user email veryfication
-    def veryfy_new_user_email(self, payload: NewUserEmailVerificationRequest) -> GlobalResponse:
+    def verify_new_user_email(self, payload: NewUserEmailVerificationRequest) -> GlobalResponse:
         try:
             token_payload = self._decode_token(payload.email_verification_token)
 
@@ -300,7 +299,7 @@ class RegistrationService(UserRepository, TokenGenerators):
                     detail=String.INVALID_OR_EXPIRED_TOKEN
                 )
 
-            if token_payload.get("type") != String.EMAIL_VERIFICATION_TOKEN:
+            if token_payload.get("token_type") != String.EMAIL_VERIFICATION_TOKEN:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=String.INVALID_TOKEN_TYPE
@@ -353,9 +352,9 @@ class RegistrationService(UserRepository, TokenGenerators):
             user.email_verified = True
             self.db.delete(otp_record)
 
-            token_data = {
+            token_payload = {
+                "token_type": String.ACCESS_TOKEN,
                 "user_id": user.user_id,
-                "email_address": user.email_address,
                 "device_id": payload.device_id,
                 "device_uuid": payload.device_uuid,
                 "iss": f"auth.{ENV.MAIN_DOMAIN}",
@@ -363,15 +362,14 @@ class RegistrationService(UserRepository, TokenGenerators):
             }
 
             access_token, _ = self._create_token(
-                token_type=String.ACCESS_TOKEN,
                 expire_min=ENV.ACCESS_EXPIRE,
-                data=token_data
+                payload=token_payload
             )
 
+            token_payload["token_type"] = String.REFRESH_TOKEN
             refresh_token, _ = self._create_token(
-                token_type=String.REFRESH_TOKEN,
                 expire_day=ENV.REFRESH_EXPIRE,
-                data=token_data
+                payload=token_payload
             )
 
             ip = self.request.client.host if self.request and self.request.client else None

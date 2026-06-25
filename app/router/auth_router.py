@@ -57,7 +57,7 @@ async def signup(
 
 @auth_router.post("/verify-new-user-email", response_model=GlobalResponse)
 @auth_router.post("/veryfy-new-user-email", response_model=GlobalResponse)
-async def veryfy_new_user_email(
+async def verify_new_user_email(
     payload: NewUserEmailVerificationRequest,
     request: Request,
     background_tasks: BackgroundTasks,
@@ -71,7 +71,7 @@ async def veryfy_new_user_email(
         authorization=authorization
     )
 
-    return registrationService.veryfy_new_user_email(payload=payload)
+    return registrationService.verify_new_user_email(payload=payload)
 
 
 

@@ -51,7 +51,7 @@ class OTPService(TokenGenerators):
                 detail=String.TIME_LIMET_EXPAIRE
             )
 
-        if token_payload.get("type") != "otp_token":
+        if token_payload.get("token_type") != "otp_token":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=String.INVALID_TOKEN_TYPE
@@ -73,15 +73,15 @@ class OTPService(TokenGenerators):
         requires_otp: bool = False
     ) -> str:
         token, _ = self._create_token(
-            data={
+            expire_min=ENV.OTP_TOKEN_EXPIRE_MIN,
+            payload={
+                "token_type": String.EMAIL_VERIFICATION_TOKEN,
                 "user_id": user.user_id,
                 "email_address": user.email_address,
                 "device_id": device_id,
                 "device_uuid": device_uuid,
                 "requires_otp": requires_otp
-            },
-            token_type=String.EMAIL_VERIFICATION_TOKEN,
-            expire_min=ENV.OTP_TOKEN_EXPIRE_MIN
+            }
         )
         return token
 
@@ -95,7 +95,7 @@ class OTPService(TokenGenerators):
                 detail=String.INVALID_OR_EXPIRED_TOKEN
             )
 
-        if token_payload.get("type") != "email_verification":
+        if token_payload.get("token_type") != "email_verification":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=String.INVALID_TOKEN_TYPE
@@ -248,14 +248,14 @@ class OTPService(TokenGenerators):
                 raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
 
             new_token, _ = self._create_token(
-                data={
+                expire_min=0,
+                payload={
+                    "token_type": String.EMAIL_VERIFICATION_TOKEN,
                     "user":user,
                     "device_id":token_payload.get("device_id"),
                     "device_uuid":token_payload.get("device_uuid"),
                     'requires_otp':True
-                },
-                token_type="",
-                expire_min=0
+                }
             )
 
             otp = Generators.generate_otp()
@@ -545,29 +545,29 @@ class OTPService(TokenGenerators):
                 self.db.commit()
 
             access_token, _ = self._create_token(
-                data={
+                expire_min=ENV.ACCESS_EXPIRE,
+                payload={
+                    "token_type": String.ACCESS_TOKEN,
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,
                     "device_uuid": device_uuid,
                     "iss": f"auth.{ENV.MAIN_DOMAIN}",
                     "aud": ENV.ALLOWED_AUDIENCES,
-                },
-                token_type="access",
-                expire_min=ENV.ACCESS_EXPIRE
+                }
             )
 
             refresh_token, _ = self._create_token(
-                data={
+                expire_day=ENV.REFRESH_EXPIRE,
+                payload={
+                    "token_type": String.REFRESH_TOKEN,
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,
                     "device_uuid": device_uuid,
                     "iss": f"auth.{ENV.MAIN_DOMAIN}",
                     "aud": [f"auth.{ENV.MAIN_DOMAIN}"],
-                },
-                token_type="refresh",
-                expire_day=ENV.REFRESH_EXPIRE
+                }
             )
 
             session = self.db.query(SessionTable).filter(

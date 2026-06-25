@@ -15,7 +15,6 @@ class String:
     INVALID_PASSWORD = "Invalid Password"
     INVALID_EMAIL_ADDRESS = "Invalid Email Address"
     INVALID_PHONE_NUMBER = "Invalid Phone Number"
-    INVALID_TOKEN = "Invalid Token"
     INVALID_TOKEN_TYPE = "Invalid Token Type"
     INVALID_OR_EXPIRED_TOKEN = "Invalid or Expired Token"
     INVALID_OTP = "Invalid OTP"

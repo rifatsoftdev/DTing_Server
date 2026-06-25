@@ -1,4 +1,4 @@
-from fastapi import status
+from fastapi import status, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
@@ -9,88 +9,68 @@ from app.model import UserTable
 from app.schema import GlobalResponse
 from services.auth.user_verification import UserVerificationService
 
-
 class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app,
         protected_prefixes: list[str] | None = None,
-        public_paths: list[str] | None = None
+        public_paths: list[str] | None = None,
+        dev_mode: bool = False # Dev er jonno extra flag
     ):
         super().__init__(app)
         self.protected_prefixes = protected_prefixes or []
         self.public_paths = public_paths or []
+        self.dev_mode = dev_mode
 
-    async def dispatch(self, request, call_next):
-        return await call_next(request)
-    
-        if (
-            request.method == "OPTIONS"
+    async def dispatch(self, request: Request, call_next):
+        # Step 1: Client type detect - just for logging/analytics
+        client_type = request.headers.get("X-Client-Type")
+        ua = request.headers.get("user-agent", "").lower()
+
+        if not client_type:
+            if "okhttp" in ua or "dart" in ua:
+                client_type = "android"
+            elif "postman" in ua:
+                client_type = "postman"
+            elif "curl" in ua:
+                client_type = "curl"
+            elif "python" in ua:
+                client_type = "python"
+            else:
+                client_type = "web"
+
+        request.state.client_type = client_type
+
+        # Step 2: Public route ba OPTIONS hoile skip
+        if (request.method == "OPTIONS"
             or self._is_public_path(request.url.path)
             or not self._is_protected_path(request.url.path)
         ):
             return await call_next(request)
 
-        client_type = request.headers.get("X-Client-Type")
-        ua = request.headers.get("user-agent", "").lower()
-
-        # print(client_type)
-        # print(ua)
-
-        if not client_type:
-            if "okhttp" in ua:
-                client_type = "android"
-            elif "mozilla" in ua:
-                client_type = "web"
-            else:
-                client_type = "unknown"
-
-        request.state.client_type = client_type
-
-        # BLOCK unknown clients
-        # if client_type not in ["android", "web"]:
-        #     return JSONResponse(
-        #         status_code=403,
-        #         content={"message": "Invalid client"}
-        #     )
-
-        # ============================================================
-        # Client type onujayi token kothai theke nibo shetai thik kora
-        # ============================================================
+        # Step 3: Token ber koro - Client type er upor depend na kore
         access_token: str | None = None
 
-        if client_type == "web":
-            # Web -> Cookie e token (cookie naam apnar login flow er
-            # cookie set korar shomoy ja diyechen, shetar shathe match
-            # korben. ekhane "access_token" placeholder, replace korben.)
-            access_token: str = request.cookies.get("access_token")
-            print(access_token)
-            if access_token:
-                # Add authorization header for downstream handlers
-                request.headers.__dict__["_list"].append(
-                    (b"Authorization", f"Bearer {access_token}".encode())
-                )
-        
-        if client_type == "android":
-            print("android")
-            # App -> Authorization header e Bearer token
-            authorization = request.headers.get("Authorization")
-            print(authorization)
-            if authorization and authorization.lower().startswith("Bearer "):
-                token = authorization.split(" ", 1)[1].strip()
+        # Priority 1: Authorization header - Postman/Python/Android/Web shobai dite pare
+        authorization = request.headers.get("Authorization")
 
-        
+        if authorization and authorization.lower().startswith("bearer "):
+            access_token = authorization.split(" ", 1)[1].strip()
+
+        # Priority 2: Cookie - shudhu web er jonno fallback
+        if not access_token and client_type == "web":
+            access_token = request.cookies.get("access_token")
+
+        # Dev mode e aro flexible korte paro
+        if not access_token and self.dev_mode:
+            # Query param diyeo token nite paro dev e
+            access_token = request.query_params.get("token")
 
         if not access_token:
-            return self._unauthorized(
-                "Missing authentication token",
-                status_code=status.HTTP_401_UNAUTHORIZED
-            )
+            print(f"{AnsiColor.BLUE}INFO:{AnsiColor.RESET}     Missing token. client={client_type} path={request.url.path}")
+            return self._unauthorized("Missing authentication token")
 
-        # ============================================================
-        # Token format same rekhe (Bearer <token>) purono service
-        # UserVerificationService ke unchanged rakha hoyeche
-        # ============================================================
+        # 4. Token verify koro
         db: Session = SessionLocal()
 
         try:
@@ -98,19 +78,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 db=db,
                 authorization=f"Bearer {access_token}"
             )
-
             user: UserTable = userVerificationService.verify_user_authorization()
-
+            request.state.current_user = user
+            # print(user)
+            
         except Exception as exc:
             status_code = getattr(exc, "status_code", status.HTTP_401_UNAUTHORIZED)
             detail = getattr(exc, "detail", "Invalid or Expired Token")
-            message = detail if isinstance(detail, str) else str(detail)
-            return self._unauthorized(message, status_code=status_code)
-        
+            return self._unauthorized(detail, status_code=status_code)
         finally:
             db.close()
-
-        request.state.current_user = user
 
         return await call_next(request)
 
@@ -120,11 +97,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     def _is_public_path(self, path: str) -> bool:
         return path in self.public_paths
 
-    def _unauthorized(
-        self,
-        message: str,
-        status_code: int = status.HTTP_401_UNAUTHORIZED
-    ) -> JSONResponse:
+    def _unauthorized(self, message: str, status_code: int = 401) -> JSONResponse:
         response = GlobalResponse(
             status_code=status_code,
             success=False,
@@ -132,10 +105,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             message=message,
             data={}
         )
-        return JSONResponse(
-            status_code=status_code,
-            content=response.model_dump()
-        )
+        return JSONResponse(status_code=status_code, content=response.model_dump())
 
 
 

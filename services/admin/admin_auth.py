@@ -115,9 +115,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
 
             # Generate tokens
             access_token, _ = self._create_token(
-                token_type="access",
                 expire_min=ENV.ACCESS_EXPIRE,
-                data={
+                payload={
+                    "token_type": "access",
                     "admin_id": admin.admin_id,
                     "email_address": admin.email,
                     "role": admin.role,
@@ -130,9 +130,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             )
         
             refresh_token, _ = self._create_token(
-                token_type="refresh",
                 expire_day=ENV.REFRESH_EXPIRE,
-                data={
+                payload={
+                    "token_type": "refresh",
                     "admin_id": admin.admin_id,
                     "email_address": admin.email,
                     "role": admin.role,
@@ -316,7 +316,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 )
 
             # Check token type
-            if payload.get("type") != "refresh":
+            if payload.get("token_type") != "refresh":
                 raise HTTPException(
                     status_code=401,
                     detail="Invalid token type"
@@ -370,9 +370,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
 
             # Generate new tokens
             access_token, _ = self._create_token(
-                token_type="access",
                 expire_min=ENV.ACCESS_EXPIRE,
-                data={
+                payload={
+                    "token_type": "access",
                     "admin_id": admin.admin_id,
                     "email": admin.email,
                     "role": admin.role,
@@ -385,9 +385,9 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             )
 
             new_refresh_token, _ = self._create_token(
-                token_type="refresh",
                 expire_day=ENV.REFRESH_EXPIRE,
-                data={
+                payload={
+                    "token_type": "refresh",
                     "admin_id": admin.admin_id,
                     "email": admin.email,
                     "role": admin.role,

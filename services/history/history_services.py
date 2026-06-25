@@ -9,7 +9,6 @@ from app.schema import PaymentRequest, GlobalResponse, GlobalRequest
 from app.model import DevTable, NotificationTable, UserTable
 from app.utils import Generators, Helpers
 
-from services.auth.user_verification import UserVerificationService
 from services.notification.notification_services import NotificationServices
 
 

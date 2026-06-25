@@ -4,14 +4,13 @@ from datetime import timedelta
 
 from app.constants import AnsiColor, ENV, String
 from app.enums import TwoFactorType
-from app.model import OTPTable, TwoFactorTable
+from app.model import OTPTable, TwoFactorTable, UserTable
 from app.schema import (
     GlobalResponse, TOTPSetupRequest, TOTPConfirmRequest, TOTPAuthDisableRequest,
     EmailTFASetupRequest, EmailTFAConfirmRequest, EmailTFADisableRequest,
     SMSTFASetupRequest, SMSTFAConfirmRequest, SMSTFADisableRequest
 )
 from services.auth.token_service import TokenGenerators
-from services.auth.user_verification import UserVerificationService
 from app.utils import Generators, Hashing, Helpers, TwoFactorAuth
 
 from services.notification.notification_services import NotificationServices, NotificationData, NotificationEvent
@@ -30,16 +29,6 @@ class TFAServices(TokenGenerators):
         self.request = request
         self.authorization = authorization
         TokenGenerators.__init__(self)
-
-    def __verify_user(self, user_id: str, access_token: str, device_id: str, device_uuid: str, password: str = None):
-        user_verification_service = UserVerificationService(
-            db=self.db,
-            background_tasks=self.background_tasks,
-            request=self.request,
-            authorization=self.authorization
-        )
-
-        return user_verification_service.verify_user_authorization()
 
     def __get_method(self, user_id: str, method_type: TwoFactorType) -> TwoFactorTable | None:
         return self.db.query(TwoFactorTable).filter(
@@ -90,12 +79,9 @@ class TFAServices(TokenGenerators):
 
     def totp_setup(self, payload: TOTPSetupRequest) -> GlobalResponse:
         try:
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload)
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+
 
             existing_totp = self.__get_method(user.user_id, TwoFactorType.TOTP)
             if existing_totp and existing_totp.is_enabled:
@@ -144,12 +130,9 @@ class TFAServices(TokenGenerators):
 
     def totp_confirm(self, payload: TOTPConfirmRequest) -> GlobalResponse:
         try:
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload)
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+
 
             method = self.__get_method(user.user_id, TwoFactorType.TOTP)
             stored_secret = method.secret_key if method else None
@@ -188,13 +171,9 @@ class TFAServices(TokenGenerators):
 
     def totp_disable(self, payload: TOTPAuthDisableRequest) -> GlobalResponse:
         try:
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload),
-                password=payload.user_password
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+            
 
             method = self.__get_method(user.user_id, TwoFactorType.TOTP)
             if not method or not method.is_enabled:
@@ -226,13 +205,9 @@ class TFAServices(TokenGenerators):
 
     def email_setup(self, payload: EmailTFASetupRequest) -> GlobalResponse:
         try:
-            # Strp 1: Verify user and token
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload)
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+
 
             # Step 2: Check if email TFA is already enabled            
             existing_email = self.__get_method(user.user_id, TwoFactorType.EMAIL)
@@ -253,15 +228,15 @@ class TFAServices(TokenGenerators):
             
             # Step 3: Generate OTP and Token
             otp_token, _ = self._create_token(
-                data={
+                expire_min=ENV.OTP_TOKEN_EXPIRE_MIN,
+                payload={
+                    "token_type": "email_tfa",
                     "method": "email_tfa",
                     "user_id": user.user_id,
                     "delever_to": user.email_address,
                     "device_id": self.__device_id(payload),
                     "device_uuid": self.__device_uuid(payload)
-                },
-                token_type="email_tfa",
-                expire_min=ENV.OTP_TOKEN_EXPIRE_MIN
+                }
             )
 
             otp: str = Generators.generate_otp()
@@ -335,12 +310,9 @@ class TFAServices(TokenGenerators):
 
     def email_confirm(self, payload: EmailTFAConfirmRequest) -> GlobalResponse:
         try:
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload)
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+
 
             otp_record = self.db.query(OTPTable).filter(
                 OTPTable.user_id == user.user_id,
@@ -404,13 +376,9 @@ class TFAServices(TokenGenerators):
 
     def email_disable(self, payload: EmailTFADisableRequest) -> GlobalResponse:
         try:
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload),
-                password=payload.user_password
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+
 
             method = self.__get_method(user.user_id, TwoFactorType.EMAIL)
             if not method or not method.is_enabled:
@@ -442,12 +410,9 @@ class TFAServices(TokenGenerators):
 
     def sms_setup(self, payload: SMSTFASetupRequest) -> GlobalResponse:
         try:
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload)
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+
 
             if not user.phone_number:
                 raise HTTPException(status_code=400, detail="User phone number is required for SMS TFA")
@@ -465,15 +430,15 @@ class TFAServices(TokenGenerators):
                 self.db.flush()
 
             otp_token, _ = self._create_token(
-                data={
+                expire_min=ENV.OTP_TOKEN_EXPIRE_MIN,
+                payload={
+                    "token_type": "sms_tfa",
                     "method": "sms_tfa",
                     "user_id": user.user_id,
                     "delever_to": f"{user.country_code or ''}{user.phone_number or ''}",
                     "device_id": self.__device_id(payload),
                     "device_uuid": self.__device_uuid(payload)
-                },
-                token_type="sms_tfa",
-                expire_min=ENV.OTP_TOKEN_EXPIRE_MIN
+                }
             )
 
             otp = Generators.generate_otp()
@@ -517,12 +482,9 @@ class TFAServices(TokenGenerators):
 
     def sms_confirm(self, payload: SMSTFAConfirmRequest) -> GlobalResponse:
         try:
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload)
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+
 
             otp_record = self.db.query(OTPTable).filter(
                 OTPTable.user_id == user.user_id,
@@ -585,13 +547,9 @@ class TFAServices(TokenGenerators):
 
     def sms_disable(self, payload: SMSTFADisableRequest) -> GlobalResponse:
         try:
-            user = self.__verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                device_id=self.__device_id(payload),
-                device_uuid=self.__device_uuid(payload),
-                password=payload.user_password
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+            
 
             method = self.__get_method(user.user_id, TwoFactorType.SMS)
             if not method or not method.is_enabled:

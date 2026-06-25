@@ -11,7 +11,6 @@ from app.model import UserTable, ResetPasswordTable, NotificationTable, UserActi
 from services.auth.token_service import TokenGenerators
 from app.utils import Hashing, Helpers
 
-from services.auth.user_verification import UserVerificationService
 from services.notification.notification_services import NotificationServices, NotificationData
 
 
@@ -63,9 +62,9 @@ class PasswordService(TokenGenerators):
 
             # Step 3: Generate Reset Token
             otp_token, _ = self._create_token(
-                token_type="otp",
                 expire_min=ENV.PASS_RST_TOKEN_EXPIRE_MIN,
-                data={
+                payload={
+                    "token_type": "otp",
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": android_id,
@@ -180,12 +179,14 @@ class PasswordService(TokenGenerators):
     # Render Reset Password Page
     def reset_password_page(self, password_token: str):
         try:
-            print()
             # Step 1: Decode and validate the password token
             payload = self._decode_token(password_token)
 
             if not payload:
-                return templates.TemplateResponse("server/expired.html", {"request": self.request})
+                return templates.TemplateResponse(
+                    "server/expired.html",
+                    {"request": self.request}
+                )
 
 
             # Step 2: Check if user and reset record exist
@@ -194,7 +195,10 @@ class PasswordService(TokenGenerators):
             ).first()
 
             if not user:
-                return templates.TemplateResponse("server/expired.html", {"request": self.request})
+                return templates.TemplateResponse(
+                    "server/expired.html",
+                    {"request": self.request}
+                )
 
             rst_password = self.db.query(ResetPasswordTable).filter(
                 ResetPasswordTable.user_email == user.email_address,
@@ -203,14 +207,20 @@ class PasswordService(TokenGenerators):
             ).first()
 
             if not rst_password:
-                return templates.TemplateResponse("server/expired.html", {"request": self.request})
+                return templates.TemplateResponse(
+                    "server/expired.html",
+                    {"request": self.request}
+                )
 
 
             # Step 3: Return the reset password template
-            return templates.TemplateResponse("user/reset_password.html", {
-                "request": self.request,
-                "password_token": password_token
-            })
+            return templates.TemplateResponse(
+                "user/reset_password.html",
+                {
+                    "request": self.request,
+                    "password_token": password_token
+                }
+            )
 
         except HTTPException:
             raise
@@ -267,6 +277,12 @@ class PasswordService(TokenGenerators):
                 raise HTTPException(
                     status_code=404,
                     detail=String.PASSWORD_RESET_NOT_FOUND
+                )
+            
+            if (rst_password.is_used):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Password Alrady Changed"
                 )
 
             rst_password.is_used = True
@@ -365,16 +381,9 @@ class PasswordService(TokenGenerators):
             ip: str = self.request.client.host
 
 
-            # Step 2: Verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
             
-            user: UserTable = user_verification_service.verify_user_authorization()
-
 
             # Step 3: Check current password
             if (not user.password_hash):

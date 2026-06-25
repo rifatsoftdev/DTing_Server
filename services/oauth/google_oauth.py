@@ -107,9 +107,9 @@ class GoogleOauth(TokenGenerators):
 
             # Generate access token
             access_token, _ = self._create_token(
-                token_type="access",
                 expire_min=ENV.ACCESS_EXPIRE,
-                data={
+                payload={
+                    "token_type": "access",
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,
@@ -121,9 +121,9 @@ class GoogleOauth(TokenGenerators):
 
             # Generate refresh token
             refresh_token, _ = self._create_token(
-                token_type="refresh",
                 expire_day=ENV.REFRESH_EXPIRE,
-                data={
+                payload={
+                    "token_type": "refresh",
                     "user_id": user.user_id,
                     "email_address": user.email_address,
                     "device_id": device_id,

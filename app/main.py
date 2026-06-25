@@ -63,7 +63,8 @@ app.add_middleware(
 app.add_middleware(
     AuthMiddleware,
     public_paths=[
-        "/country/counties",
+        "/health",
+        # "/country/counties",
         "/admin/login",
         "/admin/refresh-access-token",
         "/login",
@@ -118,23 +119,23 @@ def shutdown_event():
 
 
 # Custom exception handlers
-# @app.exception_handler(404)
-# async def custom_404_handler(request: Request, exc: HTTPException):
-#     message = exc.detail if getattr(exc, "detail", None) else "Not Found"
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc: HTTPException):
+    message = exc.detail if getattr(exc, "detail", None) else "Not Found"
 
-#     return HTMLResponse(
-#         content=templates.get_template("server/404.html").render(request=request, message=message),
-#         status_code=status.HTTP_404_NOT_FOUND
-#     )
+    return HTMLResponse(
+        content=templates.get_template("server/404.html").render(request=request, message=message),
+        status_code=status.HTTP_404_NOT_FOUND
+    )
 
 
 # Custom exception handlers
-# @app.exception_handler(Exception)
-# async def server_exception_handler(request: Request, exc: Exception):
-#     return HTMLResponse(
-#         content=templates.get_template("server/500.html").render(request=request, message=str(exc)),
-#         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-#     )
+@app.exception_handler(Exception)
+async def server_exception_handler(request: Request, exc: Exception):
+    return HTMLResponse(
+        content=templates.get_template("server/500.html").render(request=request, message=str(exc)),
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
 
 
 

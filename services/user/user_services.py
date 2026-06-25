@@ -11,7 +11,6 @@ from app.schema import GlobalResponse
 from app.model import SessionTable, UserTable, SettingsTable, KYCTable, UserActivityTable, UserServicesTable, TwoFactorTable
 from app.utils import Helpers
 
-from services.auth.user_verification import UserVerificationService
 from app.utils.cloudinary_storage import CloudinaryStorage
 
 
@@ -120,14 +119,9 @@ class UserServices:
     
     def get_active_user_services(self) -> list[dict]:
         try:
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-
-            user: UserTable = userVerificationService.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+            
 
             services = self.db.query(UserServicesTable).filter(
                 UserServicesTable.user_id == user.user_id
@@ -159,16 +153,10 @@ class UserServices:
     
 
     def add_user_service(self, service_slug: str) -> dict:
+        # Step 1: Get current user
+        user: UserTable = self.request.state.current_user
         
-        userVerificationService = UserVerificationService(
-            db=self.db,
-            background_tasks=self.background_tasks,
-            request=self.request,
-            authorization=self.authorization
-        )
 
-        user: UserTable = userVerificationService.verify_user_authorization()
-        
         existing: UserServicesTable = self.db.query(UserServicesTable).filter(
             UserServicesTable.user_id == user.user_id,
             UserServicesTable.service_slug == service_slug
@@ -277,23 +265,12 @@ class UserServices:
 
 
     # a function of get user profile information
-    def get_profile(self):
-        # user: UserTable = self.request.state.current_user
-        # print(user)
-
+    def get_profile(self) -> GlobalResponse:
         try:
-            print(self.authorization)
-            # Step 1: Extract and validate access token
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            user: UserTable = userVerificationService.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
-
-            # Step 3: Return profile response
+            # Step 2: Return profile response
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -328,14 +305,8 @@ class UserServices:
     # a function to get user settings information
     def get_settings(self) -> GlobalResponse:
         try:
-            # Step 1: Extract and validate access token
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            user: UserTable = userVerificationService.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
 
             # Step 2: Fetch user settings data
@@ -396,15 +367,8 @@ class UserServices:
                     detail="end must be greater than start"
                 )
 
-            # verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            
-            user: UserTable = user_verification_service.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
             query = self.db.query(SessionTable).filter(
                 SessionTable.user_id == user.user_id
@@ -460,15 +424,9 @@ class UserServices:
                     detail="end must be greater than start"
                 )
 
-            # verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-
-            user: UserTable = user_verification_service.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+            
 
             query = self.db.query(UserActivityTable).filter(
                 UserActivityTable.user_id == user.user_id
@@ -506,13 +464,9 @@ class UserServices:
 
     def get_kyc_status(self) -> GlobalResponse:
         try:
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            user: UserTable = userVerificationService.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
+            
 
             kyc = self.db.query(KYCTable).filter(
                 KYCTable.user_id == user.user_id
@@ -538,14 +492,9 @@ class UserServices:
     # a function to get security center
     def get_security_center(self) -> GlobalResponse:
         try:
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
-            user: UserTable = userVerificationService.verify_user_authorization()
             settings: SettingsTable = user.settings
 
             if not settings:
@@ -636,14 +585,8 @@ class UserServices:
         user_face_image: UploadFile
     ):
         try:
-            # verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-            user: UserTable = user_verification_service.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
             old_kyc = self.db.query(KYCTable).filter(
                 KYCTable.user_id == user.user_id
@@ -772,15 +715,9 @@ class UserServices:
                 f"{self.request.headers.get('content-type')}"
             )
 
-            # verify user
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
-            user: UserTable = user_verification_service.verify_user_authorization()
             
             # capture old values for activity logging
             old_values = {
@@ -944,14 +881,10 @@ class UserServices:
     # 
     def update_settings(self, payload: Dict[str, Any]) -> GlobalResponse:
         try:
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
-            user: UserTable = userVerificationService.verify_user_authorization()
+        
             settings: SettingsTable = self.db.query(SettingsTable).filter(
                 SettingsTable.user_id == user.user_id
             ).first()

@@ -363,6 +363,30 @@
     <script src="/static/js/dialog.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        async function parseResponseError(response) {
+            let message = "Request failed";
+            const raw = await response.text();
+            try {
+                const payload = raw ? JSON.parse(raw) : null;
+                if (typeof payload?.detail === "string") {
+                    message = payload.detail;
+                } else if (typeof payload?.message === "string") {
+                    message = payload.message;
+                } else if (Array.isArray(payload?.detail) && payload.detail[0]?.msg) {
+                    message = payload.detail[0].msg;
+                } else if (raw) {
+                    message = raw;
+                }
+            } catch (_) {
+                if (raw && raw.trim().startsWith("<")) {
+                    message = "Server returned HTML instead of JSON.";
+                } else if (raw) {
+                    message = raw;
+                }
+            }
+            return message;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const signupForm = document.getElementById("signup-form");
             const toggle = document.getElementById("togglePasswordSignup");

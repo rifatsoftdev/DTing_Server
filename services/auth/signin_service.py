@@ -15,8 +15,6 @@ from app.schema import (
 )
 from app.utils import Hashing, Helpers
 
-from services.auth.user_verification import UserVerificationService
-
 from services.auth.user_repository import UserRepository
 from services.auth.token_service import TokenGenerators
 from services.auth.signup_service import RegistrationService
@@ -374,15 +372,9 @@ class SigninService(TokenGenerators, UserRepository):
         payload: LogoutRequest
     ) -> GlobalResponse:
         try:
-            # Step 1: Verify user session and identity (via middleware-validated cookie)
-            user_verification_service = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
-            user: UserTable = user_verification_service.verify_user_authorization()
 
             # Step 2: Find and update the current session using token from cookie
             access_token = self.request.cookies.get("access_token")
@@ -445,15 +437,8 @@ class SigninService(TokenGenerators, UserRepository):
             android_uuid: str = payload.device_uuid
 
 
-            # Step 2: Verify user session and identity
-            userVerificationService = UserVerificationService(
-                db=self.db,
-                background_tasks=self.background_tasks,
-                request=self.request,
-                authorization=self.authorization
-            )
-
-            user: UserTable = userVerificationService.verify_user_authorization()
+            # Step 1: Get current user
+            user: UserTable = self.request.state.current_user
 
 
             # Step 3: Find and update all active sessions
