@@ -102,8 +102,6 @@ def account_page(
     db: Session = Depends(get_db)
 ):
     access_token: str = request.cookies.get("access_token")
-    print(access_token)
-    
     tokenService = TokenService(
         request=request,
         background_tasks=background_tasks,
@@ -112,7 +110,6 @@ def account_page(
     )
 
     if not tokenService._decode_token(access_token):
-        print(tokenService._decode_token(access_token))
         return RedirectResponse("/login")
     
     return templates.TemplateResponse("user/account.html", {"request": request})

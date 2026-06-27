@@ -12,7 +12,8 @@ from fastapi.testclient import TestClient
 from app.core.database import SessionLocal
 from app.constants import ENV, AnsiColor
 from app.schema.global_schema import GlobalResponse
-from app.middleware.auth_middleware import AuthMiddleware
+from app.middleware.user_auth_middleware import AuthMiddleware
+from app.middleware.admin_auth_middleware import AdminAuthMiddleware
 from sqlalchemy.orm import Session
 from services.auth.user_verification import UserVerificationService
 
@@ -61,13 +62,26 @@ app.add_middleware(
 
 # Configure authentication middleware
 app.add_middleware(
+    AdminAuthMiddleware,
+    public_paths=[
+        "/admin/login",
+        "/admin/refresh-access-token"
+    ],
+    protected_prefixes=[
+        "/admin",
+    ]
+)
+
+app.add_middleware(
     AuthMiddleware,
     public_paths=[
         "/health",
-        # "/country/counties",
-        "/admin/login",
-        "/admin/refresh-access-token",
+        "/country/counties",
         "/login",
+        "/admin/login",
+        "/auth/refresh-access-token",
+        "/auth/new-access-token",
+        "/admin/refresh-access-token"
     ],
     protected_prefixes=[
         "/bank",

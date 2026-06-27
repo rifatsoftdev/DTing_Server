@@ -3,15 +3,19 @@ class String:
     SMS_URL = "http://10.239.102.32:8000/send"
     DEMO_PROFILE_IMAGE_URL = "https://res.cloudinary.com/dgh76k5vn/image/upload/v1741357531/new_user_profile_atwuhv.png"
 
-    # detalse message
+    # Not Found Messages
     USER_NOT_FOUND = "User Not Found"
-    USER_NOT_LOGIN = "User Not Login"
-    USER_ALRADY_EXISTS = "User Already Exists"
+    DEV_NOT_FOUND = "Dev Not Found"
+    ADMIN_NOT_FOUND = "Admin Not Found"
+    WALLET_NOT_FOUND = "Wallet Not Found"
+    SETTINGS_NOT_FOUND = "Settings Not Found"
+    SESSION_NOT_FOUND = "Session Not Found"
+    PASSWORD_RESET_NOT_FOUND = "Password Reset Not Found"
+    OTP_NOT_FOUND = "OTP Not Found"
+    COUNTRY_NOT_FOUND = "Country Not Found"
     KYC_NOT_FOUND = "KYC Not Found"
 
-    ADMIN_NOT_FOUND = "Admin Not Found"
-    ADMIN_NOT_LOGIN = "Admin Not Login"
-
+    # Invalid Messages
     INVALID_PASSWORD = "Invalid Password"
     INVALID_EMAIL_ADDRESS = "Invalid Email Address"
     INVALID_PHONE_NUMBER = "Invalid Phone Number"
@@ -19,18 +23,19 @@ class String:
     INVALID_OR_EXPIRED_TOKEN = "Invalid or Expired Token"
     INVALID_OTP = "Invalid OTP"
 
-    WALLET_NOT_FOUND = "Wallet Not Found"
+    # Already Exists Messages
+    ADMIN_ALREADY_EXISTS = "Admin Already Exists"
+    USER_ALREADY_EXISTS = "User Already Exists"
+    COUNTRIES_ALREADY_EXISTS = "Country Already Exists"
+
+
+    USER_NOT_LOGIN = "User Not Login"
+    ADMIN_NOT_LOGIN = "Admin Not Login"
+    
     
     ACCOUNT_LOCKED = "Account Locked"
-    SESSION_NOT_FOUND = "Session Not Found"
     OTP_NOT_VERIFIED = "OTP Not Verified"
-    SETTINGS_NOT_FOUND = "Settings Not Found"
-    PASSWORD_RESET_NOT_FOUND = "Password Reset Not Found"
-    OTP_NOT_FOUND = "OTP Not Found"
-    COUNTRY_NOT_FOUND = "Country Not Found"
-
     SERVER_ERROR = "Internal Server Error"
-    COUNTRIES_ALREADY_EXISTS = "Country Already Exists"
     INSUFFICIENT_BALANCE = "Insufficient Balance"
     EMAIL_OR_PHONE_REQUIRED  = "Email or Phone is Required"
     LOGOUT_SUCCESSFUL = "Logout Successful"

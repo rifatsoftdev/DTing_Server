@@ -15,7 +15,7 @@ from app.schema import (
 )
 from app.utils import Hashing, Helpers
 
-from services.auth.user_repository import UserRepository
+from services.auth.repository import Repository
 from services.auth.token_service import TokenGenerators
 from services.auth.signup_service import RegistrationService
 
@@ -24,7 +24,7 @@ from services.notification.notification_services import (
 )
 
 
-class SigninService(TokenGenerators, UserRepository):
+class SigninService(TokenGenerators, Repository):
     def __init__(
         self,
         db: Session,
@@ -74,7 +74,7 @@ class SigninService(TokenGenerators, UserRepository):
             client_type = self.request.headers.get("X-Client-Type", "").lower()
 
             # Step 1: Find user by email or phone
-            user: UserTable = self.check_user_already_exists(
+            user: UserTable = self._check_user_already_exists(
                 email=email_address,
                 phone=phone_number,
                 country_code=country_code
@@ -318,7 +318,7 @@ class SigninService(TokenGenerators, UserRepository):
                     samesite="strict",
                     domain=None if ENV.DEBUG  else f".{ENV.MAIN_DOMAIN}",            # fix: subdomain shobgulote share korar jonno
                     max_age=ENV.REFRESH_EXPIRE_DAYS * 86400, # fix: din -> second e convert kora (1 din = 86400 sec)
-                    path="/api/auth/refresh"
+                    path="/auth"
                 )
 
                 # print(response.headers)
@@ -330,7 +330,9 @@ class SigninService(TokenGenerators, UserRepository):
                     data={
                         "requires_2fa": False,
                         "user_id": user.user_id,
-                        "token_type": "bearer",
+                        "device_id": device_id,
+                        "device_uuid": device_uuid,
+                        "token_type": "Bearer",
                         "expires_in": ENV.ACCESS_EXPIRE * 60,   # consistency: ekhane o second e rakha better
                         "email_address": user.email_address,
                         "phone_number": f"{user.country_code or ''}{user.phone_number or ''}" or None

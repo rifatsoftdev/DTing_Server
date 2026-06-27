@@ -4,6 +4,9 @@ export class ApiClient {
         this.isRefreshing = false;
         this.refreshPromise = null;
         this.isRedirecting = false; // notun flag
+        this.user_id = localStorage.getItem('user_id');
+        this.device_id = localStorage.getItem('device_id');
+        this.device_uuid = localStorage.getItem('device_uuid');
     }
 
     async request(method, url, body = null, retry = true) {
@@ -24,10 +27,9 @@ export class ApiClient {
 
         if (response.status === 401) {
             const errBody = await response.json().catch(() => ({}));
-            const message = errBody?.message || "";
+            const message = errBody?.message || errBody?.detail || "";
             
-            // SHUDHU "Invalid or Expired Token" hoile refresh
-            const shouldRefresh = message === "Invalid or Expired Token" && retry;
+            const shouldRefresh = retry && !this.isAuthEndpoint(url);
 
             if (shouldRefresh) {
                 const refreshed = await this.handleTokenRefresh();
@@ -57,27 +59,58 @@ export class ApiClient {
         return await response.json();
     }
 
+    isAuthEndpoint(url) {
+        return url.includes("/auth/login")
+            || url.includes("/auth/signin")
+            || url.includes("/auth/logout")
+            || url.includes("/auth/refresh-access-token")
+            || url.includes("/auth/new-access-token");
+    }
+
     async handleTokenRefresh() {
         if (this.isRefreshing) return this.refreshPromise;
-
         this.isRefreshing = true;
+        
         this.refreshPromise = (async () => {
             try {
+                const body = {
+                    user_id: localStorage.getItem('user_id') || this.user_id,
+                    device_id: localStorage.getItem('device_id') || this.device_id,
+                    device_uuid: localStorage.getItem('device_uuid') || this.device_uuid
+                };
+
                 const response = await fetch(this.BASE_URL + "/auth/refresh-access-token", {
                     method: "POST",
-                    credentials: "include",
-                    headers: { "X-Client-Type": "web" }
+                    credentials: "include", // cookie auto jabe
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "X-Client-Type": "web" 
+                    },
+                    body: JSON.stringify(body)
                 });
                 if (!response.ok) throw new Error("Refresh failed");
+                await response.json();
                 return true;
             } catch (err) {
                 console.error("Refresh error:", err.message);
+                this.logout();
                 return false;
             } finally {
                 this.isRefreshing = false;
             }
         })();
         return this.refreshPromise;
+    }
+
+    logout() {
+        localStorage.removeItem("user_id");
+        localStorage.removeItem("device_id");
+        localStorage.removeItem("device_uuid");
+
+        if (!this.isRedirecting && window.location.pathname !== "/login") {
+            this.isRedirecting = true;
+            window.location.href = "/login";
+        }
     }
 
     get(url) { return this.request("GET", url); }

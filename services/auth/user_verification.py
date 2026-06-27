@@ -7,96 +7,28 @@ from app.constants import AnsiColor, String, ENV
 from app.utils.hashing import Hashing
 from app.enums import KYCStatus
 from app.model import UserTable, SettingsTable, SessionTable, AdminTable, KYCTable
-
+from services.auth.repository import Repository
 from services.auth.token_service import TokenService
 
 
 
-class UserVerificationService(TokenService):
+class UserVerificationService(TokenService, Repository):
     def __init__(
         self,
-        db: Session = None,
-        background_tasks: BackgroundTasks = None,
-        request: Request = None,
-        authorization: str = None
+        db: Session | None = None,
+        background_tasks: BackgroundTasks | None = None,
+        request: Request | None = None,
+        authorization: str | None = None
     ):
-        self.db = db
-        self.background_tasks = background_tasks
-        self.request = request
-        self.authorization = authorization
-        super().__init__(db=db, background_tasks=background_tasks, request=request, authorization=authorization)
-        self.__get_authorization()
+        TokenService.__init__(
+            self,
+            db=db,
+            background_tasks=background_tasks,
+            request=request,
+            authorization=authorization,
+        )
 
-    def __get_admin(self, admin_id: str) -> AdminTable:
-        admin: AdminTable = self.db.query(AdminTable).filter(
-            AdminTable.admin_id == admin_id
-        ).first()
-    
-        if not admin:
-            print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}     User with ID {admin_id} not found on AdminTable")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=String.USER_NOT_FOUND
-            )
-
-        return admin
-
-    def __get_user(self, user_id: str) -> UserTable:
-        user: UserTable = self.db.query(UserTable).filter(
-            UserTable.user_id == user_id
-        ).first()
-    
-        if not user:
-            print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}     User with ID {user_id} not found on UserTable")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=String.USER_NOT_FOUND
-            )
-
-        return user
-
-    def __get_settings(self, user_id: str) -> SettingsTable:
-        settings = self.db.query(SettingsTable).filter(
-            SettingsTable.user_id == user_id
-        ).first()
-
-        if not settings:
-            print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}     User with ID {user_id} not found on SettingsTable")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=String.SETTINGS_NOT_FOUND
-            )
-        
-        return settings
-
-    def __get_kyc(self, user_id: str) -> KYCTable:
-        kyc: KYCTable = self.db.query(KYCTable).filter(
-            KYCTable.user_id == user_id
-        ).first()
-
-        if not kyc:
-            print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}     User with ID {user_id} not found on KYCTable")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=String.KYC_NOT_FOUND
-            )
-        
-        return kyc
-
-    def __get_session(self, user_id: str, device_id: str, device_uuid: str, admin=False) -> SessionTable:
-        session = self.db.query(SessionTable).filter(
-            SessionTable.user_id == user_id,
-            SessionTable.device_id == device_id,
-            SessionTable.device_uuid == device_uuid,
-            SessionTable.is_login == True
-        ).first()
-
-        if not session:
-            print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}     User with ID {user_id} not found on SessionTable")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=String.SESSION_NOT_FOUND
-            )
+        Repository.__init__(self, db)
 
     def __bearer_2_token(self, authorization: str) -> str:
         if not authorization:
@@ -113,12 +45,6 @@ class UserVerificationService(TokenService):
 
         return authorization.split(" ")[1]
 
-    def __get_authorization(self):
-        if not self.authorization:
-            access_token: str = self.request.cookies.get("access_token")
-            # print(1, access_token)
-            self.authorization = f"Bearer {access_token}"
-        
 
     # User authorization function
     def verify_user_authorization(
@@ -158,10 +84,10 @@ class UserVerificationService(TokenService):
             
 
             # Step 3: Fetch user, kyc, and session
-            user: UserTable = self.__get_user(payload.get("user_id"))
+            user: UserTable = self._get_user(payload.get("user_id"))
             # kyc: KYCTable = self.__get_kyc(user.user_id)
             if device_id and device_uuid:
-                session: SessionTable = self.__get_session(
+                session: SessionTable = self._get_session(
                     user_id=user.user_id,
                     device_id=device_id,
                     device_uuid=device_uuid
@@ -172,7 +98,7 @@ class UserVerificationService(TokenService):
             if payload.get("user_id") != user.user_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.INVALID_TOKEN
+                    detail=String.INVALID_OR_EXPIRED_TOKEN
                 )
             
 
@@ -192,7 +118,7 @@ class UserVerificationService(TokenService):
             
 
             # Step 6: checks Account status and session
-            if (self.__get_settings(user.user_id).account_deactivated):
+            if (self._get_settings(user.user_id).account_deactivated):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=String.ACCOUNT_LOCKED
@@ -270,11 +196,14 @@ class UserVerificationService(TokenService):
             
 
             # Step 3: Fetch user, kyc, and session
-            admin: AdminTable = self.__get_admin(payload.get("admin_id"))
-            session: SessionTable = self.__get_session(
+            admin: AdminTable = self._get_admin(payload.get("admin_id"))
+            device_id = device_id or payload.get("device_id")
+            device_uuid = device_uuid or payload.get("device_uuid")
+            session: SessionTable = self._get_session(
                 user_id=admin.admin_id,
                 device_id=device_id,
-                device_uuid=device_uuid
+                device_uuid=device_uuid,
+                admin=True
             )
 
 
@@ -282,7 +211,7 @@ class UserVerificationService(TokenService):
             if payload.get("admin_id") != admin.admin_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.INVALID_TOKEN
+                    detail=String.INVALID_OR_EXPIRED_TOKEN
                 )
             
 
@@ -302,7 +231,7 @@ class UserVerificationService(TokenService):
 
 
             # Step 6: checks Account status and session
-            # if (self.__get_settings(admin.admin_id).account_deactivated):
+            # if (self._get_settings(admin.admin_id).account_deactivated):
             #     raise HTTPException(
             #         status_code=status.HTTP_401_UNAUTHORIZED,
             #         detail=String.ACCOUNT_LOCKED

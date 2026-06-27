@@ -12,7 +12,7 @@ from app.model import UserTable, SettingsTable, CountryTable, OTPTable, SessionT
 from app.schema import RegisterRequest, GlobalResponse
 
 from services.auth.token_service import TokenGenerators
-from services.auth.user_repository import UserRepository
+from services.auth.repository import Repository
 from services.notification.notification_services import (
     NotificationServices,
     NotificationData,
@@ -20,7 +20,7 @@ from services.notification.notification_services import (
 )
 
 
-class RegistrationService(UserRepository, TokenGenerators):
+class RegistrationService(Repository, TokenGenerators):
     def __init__(
         self,
         db: Session,
@@ -144,14 +144,14 @@ class RegistrationService(UserRepository, TokenGenerators):
                     detail=String.COUNTRY_NOT_FOUND
                 )
 
-            if self.check_user_already_exists(
+            if self._check_user_already_exists(
                 email=payload.email_address,
                 phone=payload.phone_number,
                 country_code=payload.country_code
             ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail=String.USER_ALRADY_EXISTS
+                    detail=String.USER_ALREADY_EXISTS
                 )
 
             # Step 2: Create User

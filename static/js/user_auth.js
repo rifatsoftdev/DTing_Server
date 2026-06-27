@@ -62,21 +62,27 @@ export async function loginUser(api, {
     console.log(payload);
 
     try {
-        const data = await api.post("/auth/login", payload);
+        const responce = await api.post("/auth/login", payload);
 
-        const action = data?.action;
-        const result = data?.data;
+        const action = responce?.action;
+        const data = responce?.data;
 
         if (action === "login") {
             // ✅ Cookie already backend e set hoye gেছে (HttpOnly access_token + refresh_token)
             // localStorage ba api.setTokens() kichui lagbe na - browser nijei cookie pathabe
             console.log("login");
+            
+            // save locally
+            localStorage.setItem('user_id', data.user_id);
+            localStorage.setItem('device_id', data.device_id);
+            localStorage.setItem('device_uuid', data.device_uuid);
+
             window.location.href = "/account";
         }
 
         else if (action === "2fa_verification_required") {
             console.log("2fa_verification_required");
-            window.location.href = `/otp.html?user_id=${result.user_id}`;
+            window.location.href = `/otp.html?user_id=${data.user_id}`;
         }
 
         else if (action === "verify_email") {
@@ -165,29 +171,6 @@ async function verifyOTP({
         return raw ? JSON.parse(raw) : {};
     } catch (_) {
         throw new Error("Server returned non-JSON response. Check backend logs/routes.");
-    }
-}
-
-function persistAuthSession({
-    user_id,
-    access_token,
-    refresh_token
-}) {
-    const secure = window.location.protocol === "https:" ? "; Secure" : "";
-    const oneDay = 60 * 60 * 24;
-    const thirtyDays = 60 * 60 * 24 * 30;
-
-    if (user_id) {
-        document.cookie = `user_id=${encodeURIComponent(user_id)}; path=/; max-age=${thirtyDays}; SameSite=Lax${secure}`;
-        localStorage.setItem("user_id", user_id);
-    }
-    if (access_token) {
-        document.cookie = `access_token=${encodeURIComponent(access_token)}; path=/; max-age=${oneDay}; SameSite=Lax${secure}`;
-        localStorage.setItem("access_token", access_token);
-    }
-    if (refresh_token) {
-        document.cookie = `refresh_token=${encodeURIComponent(refresh_token)}; path=/; max-age=${thirtyDays}; SameSite=Lax${secure}`;
-        localStorage.setItem("refresh_token", refresh_token);
     }
 }
 

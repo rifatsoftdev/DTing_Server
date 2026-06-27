@@ -212,6 +212,9 @@ class SetupServices(RegistrationService):
                 "enabled": False
             },
             "signup_settings": {
+                "enabled": True,
+                "facebook_signup": True,
+                "twitter_signup": True,
                 "google_signup": True
             },
             "signin_settings": {

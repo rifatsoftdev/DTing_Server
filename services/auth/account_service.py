@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import BackgroundTasks, HTTPException, Request, status
+from fastapi import BackgroundTasks, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.constants import AnsiColor, String, ENV
@@ -14,7 +14,7 @@ from app.utils import Hashing, Helpers
 
 from services.auth.otp_service import OTPService
 
-from services.auth.user_repository import UserRepository
+from services.auth.repository import Repository
 from services.auth.token_service import TokenGenerators
 from services.auth.signup_service import RegistrationService
 
@@ -38,7 +38,7 @@ class AccountServices(OTPService, SigninService):
             request=request,
             authorization=authorization
         )
-        UserRepository.__init__(self, db)
+        Repository.__init__(self, db)
         SigninService.__init__(
             self,
             db=db,
@@ -150,17 +150,55 @@ class AccountServices(OTPService, SigninService):
 
 
     # Get a New Access Token Using Refresh Token
-    def refresh_access_token(self, payload: AccessTokenRequest) -> GlobalResponse:
+    def refresh_access_token(
+        self,
+        payload: AccessTokenRequest,
+        response: Response | None = None
+    ) -> GlobalResponse:
         try:
             # Step 1: Extract data from payload
-            refresh_token = payload.refresh_token
-            user_id = payload.user_id
-            device_id = payload.device_id
-            device_uuid = payload.device_uuid
-            
+            refresh_token = (
+                self.authorization
+                or self.request.cookies.get("refresh_token")
+                or payload.refresh_token
+            )
+            if refresh_token and refresh_token.lower().startswith("bearer "):
+                refresh_token = refresh_token.split(" ", 1)[1].strip()
 
-            # Step 2: Verify session and token
+            # Step 2: Decode and validate refresh token
+            token_payload: dict = self._decode_token(refresh_token)
+
+            if token_payload == None:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Refresh Token Expired"
+                )
+            
+            if token_payload.get("token_type") != "refresh":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid Token"
+                )
+
+            user_id = payload.user_id or token_payload.get("user_id")
+            device_id = payload.device_id or token_payload.get("device_id")
+            device_uuid = payload.device_uuid or token_payload.get("device_uuid")
+            
+            if not user_id or not device_id or not device_uuid:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.INVALID_OR_EXPIRED_TOKEN
+                )
+
+            if token_payload.get("user_id") != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User ID mismatch"
+                )
+
+            # Step 3: Verify session
             session: SessionTable = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user_id,
                 SessionTable.device_id == device_id,
                 SessionTable.device_uuid == device_uuid
             ).first()
@@ -178,35 +216,12 @@ class AccountServices(OTPService, SigninService):
                 )
 
 
-            # Step 3: Decode and validate refresh token
-            payload: dict = self._decode_token(refresh_token)
-            # print(payload)
-
-            if payload == None:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Refresh Token Expired"
-                )
-            
-            if payload.get("token_type") != "refresh":
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid Token"
-                )
-            
-            if payload.get("user_id") != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="User ID mismatch"
-                )
-
-
             # Step 4: Generate new access token
             access_token, _ = self._create_token(
                 expire_min=ENV.ACCESS_EXPIRE,
                 payload={
                     "token_type": String.ACCESS_TOKEN,
-                    "user_id": payload.get("user_id"),
+                    "user_id": user_id,
                     "device_id": device_id,
                     "device_uuid": device_uuid,
                     "iss": f"auth.{ENV.MAIN_DOMAIN}",
@@ -217,7 +232,7 @@ class AccountServices(OTPService, SigninService):
 
             # Step 5: Update session with new access token hash
             session: SessionTable = self.db.query(SessionTable).filter(
-                SessionTable.user_id == payload.get("user_id"),
+                SessionTable.user_id == user_id,
                 SessionTable.device_id == device_id,
                 SessionTable.device_uuid == device_uuid
             ).first()
@@ -226,6 +241,18 @@ class AccountServices(OTPService, SigninService):
                 session.access_token_hash = Hashing.create_hash(access_token)
                 self.db.commit()
                 self.db.refresh(session)
+
+            if response is not None:
+                response.set_cookie(
+                    key="access_token",
+                    value=access_token,
+                    httponly=True,
+                    secure=False,
+                    samesite="lax",
+                    domain=None if ENV.DEBUG else f".{ENV.MAIN_DOMAIN}",
+                    max_age=ENV.ACCESS_EXPIRE * 60,
+                    path="/"
+                )
 
 
             # Return Response

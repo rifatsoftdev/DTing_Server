@@ -95,10 +95,10 @@ class NewUserEmailVerificationRequest(BaseModel):
 
 # Schema for get new access token
 class AccessTokenRequest(BaseModel):
-    refresh_token: str
-    user_id: str
-    device_id: str
-    device_uuid: str
+    refresh_token: Optional[str] = None
+    user_id: Optional[str] = None
+    device_id: Optional[str] = None
+    device_uuid: Optional[str] = None
     
 
 # Schema for FCM token recive

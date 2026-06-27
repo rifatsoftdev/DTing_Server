@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.model.admin_table import AdminPermissions
 
-from services.settings.settings_services import SettingsServices
 from app.schema import GlobalResponse
 
 settings_router = APIRouter()
@@ -49,9 +48,3 @@ async def legacy_settings_page():
 #     response_model=GlobalResponse,
 #     dependencies=[Depends(admin_auth.require_permission(AdminPermissions.CAN_EDIT_SETTINGS))]
 # )
-async def update_setting(
-    key: str,
-    payload: Dict[str, Any] = Body(...),
-    db: Session = Depends(get_db)
-):
-    return SettingsServices(db).update_setting(key, payload)

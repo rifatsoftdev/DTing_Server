@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, BackgroundTasks, Body, Header, Query, Request, Response
 from fastapi.responses import HTMLResponse
 # from fastapi.requests import Request
 from sqlalchemy.orm import Session
@@ -263,9 +263,10 @@ async def receive_fcm_token(
 @auth_router.post("/new-access-token")
 @auth_router.post("/refresh-access-token")
 async def refresh_access_token(
-    payload: AccessTokenRequest,
     request: Request,
+    response: Response,
     background_tasks: BackgroundTasks,
+    payload: AccessTokenRequest | None = Body(None),
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -276,7 +277,10 @@ async def refresh_access_token(
         authorization=authorization
     )
 
-    return accountServices.refresh_access_token(payload=payload)
+    return accountServices.refresh_access_token(
+        payload=payload or AccessTokenRequest(),
+        response=response
+    )
 
 
 

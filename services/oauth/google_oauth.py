@@ -72,7 +72,7 @@ class GoogleOauth(TokenGenerators):
                 authorization=self.authorization
             )
             
-            existing_user: UserTable = registrationService.check_user_already_exists(
+            existing_user: UserTable = registrationService._check_user_already_exists(
                 email=email_address
             )
 
