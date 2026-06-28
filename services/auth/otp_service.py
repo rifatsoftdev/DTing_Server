@@ -231,7 +231,7 @@ class OTPService(TokenGenerators):
             if token_payload.get("email_address") and user.email_address != token_payload.get("email_address"):
                 raise HTTPException(
                     status_code=401,
-                    detail=String.INVALID_TOKEN
+                    detail=String.INVALID_OR_EXPIRED_TOKEN
                 )
 
             if user.email_verified:
@@ -245,7 +245,7 @@ class OTPService(TokenGenerators):
                 )
 
             if not token_payload.get("device_id") or not token_payload.get("device_uuid"):
-                raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+                raise HTTPException(status_code=401, detail=String.INVALID_OR_EXPIRED_TOKEN)
 
             new_token, _ = self._create_token(
                 expire_min=0,

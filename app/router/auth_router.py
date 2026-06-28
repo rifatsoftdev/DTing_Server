@@ -55,10 +55,11 @@ async def signup(
 
 # ==============================================================================
 
-@auth_router.post("/verify-new-user-email", response_model=GlobalResponse)
-@auth_router.post("/veryfy-new-user-email", response_model=GlobalResponse)
+@auth_router.get("/verify-new-user-email/{email_verification_token}", response_model=GlobalResponse)
+@auth_router.get("/veryfy-new-user-email", response_model=GlobalResponse)
 async def verify_new_user_email(
-    payload: NewUserEmailVerificationRequest,
+    email_verification_token: str,
+
     request: Request,
     background_tasks: BackgroundTasks,
     authorization: str = Header(None),
@@ -71,7 +72,7 @@ async def verify_new_user_email(
         authorization=authorization
     )
 
-    return registrationService.verify_new_user_email(payload=payload)
+    return registrationService.verify_new_user_email(email_verification_token=email_verification_token)
 
 
 

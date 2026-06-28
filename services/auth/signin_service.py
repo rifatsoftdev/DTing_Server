@@ -85,6 +85,7 @@ class SigninService(TokenGenerators, Repository):
                     status_code=status.HTTP_404_NOT_FOUND,
                     success=False,
                     message=String.USER_NOT_FOUND,
+                    action="user_not_found",
                     data={},
                     next_step={
                         "endpoint": "/auth/register",
@@ -107,7 +108,7 @@ class SigninService(TokenGenerators, Repository):
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=String.SETTINGS_NOT_FOUND
                 )
-
+            
             if settings.account_deactivated:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -139,11 +140,13 @@ class SigninService(TokenGenerators, Repository):
                     request=self.request,
                     authorization=self.authorization
                 )
+
                 response: GlobalResponse = registration_service.email_verification_required_response(
                     user=user,
                     device_id=device_id,
                     device_uuid=device_uuid
                 )
+
                 self.db.commit()
 
                 return response

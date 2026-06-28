@@ -47,9 +47,6 @@ export async function loginUser(api, {
     const device_id = get_device_id();
     const device_uuid = await get_device_uuid();
 
-    // console.log(typeof device_id)
-    // console.log(typeof device_uuid)
-
     const payload = {
         email_address,
         phone_number,
@@ -60,42 +57,65 @@ export async function loginUser(api, {
     };
 
     try {
-        const responce = await api.post("/auth/login", payload);
+        const result = await api.post("/auth/login", payload);
         
-        const action = responce?.action;
-        const data = responce?.data;
+        // Success হলে এখানে আসবে। 200/201 ছাড়া ApiClient থেকেই throw হবে
+        const action = result?.action;
+        const data = result?.data;
 
-        if (responce.status_code === 200) {
-            if (action === "login") {
-                // ✅ Cookie already backend e set hoye gেছে (HttpOnly access_token + refresh_token)
-                // localStorage ba api.setTokens() kichui lagbe na - browser nijei cookie pathabe
-                console.log("login");
-                
-                // save locally
-                localStorage.setItem('user_id', data.user_id);
-                localStorage.setItem('device_id', data.device_id);
-                localStorage.setItem('device_uuid', data.device_uuid);
+        if (action === "login") {
+            // Cookie already backend e set হয়ে গেছে
+            console.log("Login success");
+            
+            localStorage.setItem('user_id', data.user_id);
+            localStorage.setItem('device_id', data.device_id);
+            localStorage.setItem('device_uuid', data.device_uuid);
 
-                window.location.href = "/account";
-            } else if (action === "2fa_verification_required") {
-                console.log("2fa_verification_required");
-                window.location.href = `/otp.html?user_id=${data.user_id}`;
-            } else if (action === "verify_email") {
-                console.log("verify_email");
-                window.location.href = `/verify-email.html?email=${result.email_address}`;
-            } else {
-                console.warn("Unknown action:", action);
-            }
-        } else if (responce.status_code === 404) {
-            throw new Error("User not found");
+            window.location.href = "/account";
+            
+        } else if (action === "2fa_verification_required") {
+            console.log("2FA required");
+            window.location.href = `/otp.html?user_id=${data.user_id}`;
+            
+        } else if (action === "verify_email") {
+            console.log("Email not verified");
+            
+            
+        } else if (action === "user_not_found") {
+            console.log("User not found");
+            window.location.href = "/register";
         } else {
-            throw new Error(await parseResponseError(responce));
+            console.warn("Unknown action:", action);
+            throw new Error("Unknown login response");
         }
+        
     } catch (error) {
         console.error("Login error:", error.message);
+        
+        // Error এর ভিতর backend এর data থাকলে সেটা দিয়ে হ্যান্ডেল করো
+        const action = error.data?.action;
+        
+        if (action === "verify_email") {
+            console.log("Redirecting to verify email");
+            window.location.href = `/verify-email.html?email=${email_address}`;
+            return;
+        }
+        
+        if (action === "2fa_verification_required") {
+            const userId = error.data?.data?.user_id;
+            window.location.href = `/otp.html?user_id=${userId}`;
+            return;
+        }
+        
+        if (error.status === 404) {
+            throw new Error("User not found");
+        }
+        
+        // বাকি সব error UI তে দেখাও
         throw error;
     }
 }
+
 
 async function sendOTP({
     method,
@@ -126,6 +146,7 @@ async function sendOTP({
     }
 
     const raw = await response.text();
+
     try {
         return raw ? JSON.parse(raw) : {};
     } catch (_) {

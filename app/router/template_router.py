@@ -121,6 +121,7 @@ def account_page(
 # ==============================================================================
 
 @template_router.get("/signup", tags=["UI"], response_class=HTMLResponse)
+@template_router.get("/register", tags=["UI"], response_class=HTMLResponse)
 def signup_page(request: Request):
     """Signup page"""
     return templates.TemplateResponse("user/user_signup.html", {"request": request})

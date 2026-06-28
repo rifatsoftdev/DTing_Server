@@ -166,7 +166,7 @@ class EmailTemplate:
                         Click the button below to set a new password securely.
                     </p>
 
-                    <a href="http://192.168.1.100:8000/auth/reset-password/{reset_link}" style="display:inline-block; background-color:#1E88E5; color:#ffffff; text-decoration:none; padding:15px 30px; border-radius:5px; font-size:16px; margin:25px 0;">Reset Password</a>
+                    <a href="{reset_link}" style="display:inline-block; background-color:#1E88E5; color:#ffffff; text-decoration:none; padding:15px 30px; border-radius:5px; font-size:16px; margin:25px 0;">Reset Password</a>
 
                     <p style="color:#555555; font-size:15px; line-height:1.5;">
                         This link is valid for the next 15 minutes.  
@@ -403,13 +403,6 @@ class EmailTemplate:
                     </p>
 
                     <a href="{verification_link}" style="display:inline-block; background-color:#1E88E5; color:#ffffff; text-decoration:none; padding:15px 30px; border-radius:5px; font-size:16px; margin:25px 0;">Verify Email</a>
-
-                    <p style="color:#555555; font-size:15px; line-height:1.5;">
-                        If the button above doesn't work, copy and paste the following link into your browser:
-                    </p>
-                    <p style="color:#1E88E5; font-size:13px; word-break:break-all;">
-                        {verification_link}
-                    </p>
 
                     <p style="color:#999999; font-size:13px; margin-top:30px;">
                         If you did not create an account, no further action is required.

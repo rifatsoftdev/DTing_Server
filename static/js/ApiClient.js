@@ -1,6 +1,7 @@
 export class ApiClient {
     constructor(BASE_URL) {
         this.BASE_URL = BASE_URL;
+        this.AUTH_URL = BASE_URL;
         this.isRefreshing = false;
         this.refreshPromise = null;
         this.isRedirecting = false;
@@ -21,15 +22,11 @@ export class ApiClient {
         }
 
         let response;
-
         try {
             response = await fetch(this.BASE_URL + url, options);
         } catch (networkErr) {
-            // Network fail, server down, CORS etc. User ke logout kora jabe na
-            // console.error("Network error:", networkErr);
             throw new Error("Network error. Please check your connection.");
         }
-
 
         let data = null;
         const contentType = response.headers.get("content-type");
@@ -42,44 +39,38 @@ export class ApiClient {
             }
         }
 
-        // console.log(data.status_code);
-        // console.log(data.message);
+        // 401 Unauthorized - token issue handle
+        if (response.status === 401) {
+            const message = (data?.message || data?.detail || "").toLowerCase();
+            const isTokenExpired = message.includes("token") && (message.includes("expired") || message.includes("invalid") || message.includes("missing"));
 
-        // 1. Success case
+            if (isTokenExpired && retry && !this.isAuthEndpoint(url)) {
+                const refreshed = await this.handleTokenRefresh();
+
+                if (refreshed) {
+                    return this.request(method, url, body, false); // একবার retry
+                }
+                // Refresh fail হলে logout
+                // this.forceLogout(); 
+            }
+            
+            const error = new Error(data?.message || data?.detail || "Authentication failed");
+            error.data = data;
+            error.status = response.status;
+            throw error;
+        }
+
+        // Success case
         if (response.ok) {
             return data;
         }
-        
-        // 2. 401 Unauthorized - token issue kina check koro
-        if (response.status === 401) {
-            const message = data?.message || data?.detail || "";
-            const isTokenExpired = message === "Invalid or Expired Token" || message === "Token expired" || message === "Missing authentication token";
-            
-            // console.log(message)
-            // console.log(isTokenExpired)
 
-            // Khali token expired hoile + auth endpoint na hoile + retry true hoile refresh
-            if (isTokenExpired && retry && !this.isAuthEndpoint(url)) {
-                const refreshed = await this.handleTokenRefresh();
-                if (refreshed) {
-                    return this.request(method, url, body, false); // ekbar e retry
-                }
-                // Refresh fail hoile niche logout hobe
-            }
-
-            // Token invalid/expired ar refresh o fail, taholei logout
-            if (isTokenExpired) {
-                // this.forceLogout();
-            }
-            
-            throw new Error(message || "Authentication failed");
-        }
-
-        // 3. 403 Forbidden - permission nai, logout na
-        // 4. 500, 502, 503 - server error, logout na
-        // 5. Baki sob error - just message throw koro
+        // বাকি সব error - 403, 404, 400, 500 etc
         const errorMessage = data?.message || data?.detail || `HTTP Error ${response.status}`;
-        throw new Error(errorMessage);
+        const error = new Error(errorMessage);
+        error.data = data; // backend থেকে আসা action, status_code সব থাকবে
+        error.status = response.status;
+        throw error;
     }
 
     isAuthEndpoint(url) {
@@ -102,7 +93,7 @@ export class ApiClient {
                     device_uuid: localStorage.getItem('device_uuid')
                 };
 
-                const response = await fetch(this.BASE_URL + "/auth/refresh-access-token", {
+                const response = await fetch(this.AUTH_URL + "/auth/refresh-access-token", {
                     method: "POST",
                     credentials: "include",
                     headers: { 
@@ -112,7 +103,6 @@ export class ApiClient {
                     body: JSON.stringify(body)
                 });
                 
-                // Refresh API 500 dileo logout korbo na. Just false return korbo
                 if (!response.ok) {
                     console.error("Refresh API failed with status:", response.status);
                     return false;
@@ -120,7 +110,6 @@ export class ApiClient {
                 
                 return true;
             } catch (err) {
-                // Network error hoileo logout na
                 console.error("Refresh network error:", err.message);
                 return false;
             } finally {
@@ -132,7 +121,6 @@ export class ApiClient {
     }
 
     forceLogout() {
-        // Ei function ta khali tokhoni call hobe jokhon sure token invalid
         if (this.isRedirecting) return;
         
         localStorage.removeItem("user_id");

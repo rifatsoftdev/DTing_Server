@@ -1,4 +1,6 @@
 from fastapi import HTTPException, BackgroundTasks, Request, status
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from datetime import datetime
 from google.oauth2 import id_token
@@ -18,6 +20,9 @@ from services.notification.notification_services import (
     NotificationData,
     NotificationEvent,
 )
+
+
+templates = Jinja2Templates(directory="templates")
 
 
 class RegistrationService(Repository, TokenGenerators):
@@ -199,9 +204,9 @@ class RegistrationService(Repository, TokenGenerators):
         device_id: str,
         device_uuid: str
     ) -> GlobalResponse:
-        otp: str = Generators.generate_otp()
         email_sent: bool = False
 
+        # Step 4: Create OTP token for email verification
         email_verification_token, _ = self._create_token(
             expire_min=ENV.OTP_TOKEN_EXPIRE_MIN,
             payload={
@@ -214,105 +219,67 @@ class RegistrationService(Repository, TokenGenerators):
             }
         )
 
-        self.db.query(OTPTable).filter(
-            OTPTable.user_id == user.user_id
-        ).delete()
+        email_verification_link: str = f"{ENV.AUTH_SERVER_URL}/auth/verify-new-user-email/{email_verification_token}"
 
-        new_otp_record = OTPTable(
-            user_id=user.user_id,
-            otp_token=email_verification_token,
-            device_id=device_id,
-            device_uuid=device_uuid,
-            delever_to=user.email_address,
-            otp_hash=Hashing.create_hash(otp),
-            expires_at=Helpers.utc6dhaka() + Helpers.minutes_to_timedelta(ENV.OTP_TOKEN_EXPIRE_MIN)
-        )
-        self.db.add(new_otp_record)
-        self.db.flush()
+        
 
         if user.email_address:
             notification_service = NotificationServices(
                 db=self.db,
-                background_tasks=self.background_tasks
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization,
             )
 
-            notification_service = NotificationServices(
-            db=self.db,
-            background_tasks=self.background_tasks,
-            request=self.request,
-            authorization=self.authorization,
-        )
-
-        notification_service.send_notification(
-            NotificationData(
-                event=NotificationEvent.OTP,
-                user_id=user.user_id,
-                email_address=user.email_address,
-                # fcm_token=session.fcm_token,  # optional, না দিলেও session থেকে খুঁজবে
-                email=True,
-                push=True,
-                sms=False,
-                context={
-                    "name": user.full_name,
-                    "email": user.email_address,
-                    "otp": otp,
-                },
-                payload={
-                    "type": "otp",
-                    "user_id": user.user_id,
-                }
+            notification_service.send_notification(
+                NotificationData(
+                    event=NotificationEvent.EMAIL_VERIFICATION,
+                    user_id=user.user_id,
+                    email_address=user.email_address,
+                    # fcm_token=session.fcm_token,  # optional, না দিলেও session থেকে খুঁজবে
+                    email=True,
+                    push=False,
+                    sms=False,
+                    template="email_verification",
+                    context={
+                        "name": user.full_name,
+                        "verification_link": email_verification_link,
+                    }
+                )
             )
-        )
         
         return GlobalResponse(
             status_code=status.HTTP_201_CREATED,
             success=True,
             action="verify_email",
-            message="Please verify your email before login.",
+            message="Email verification required. Please check your email for the verification link.",
             data={
                 "user_id": user.user_id,
-                "email_sent": email_sent,
-                "email_verification_token": email_verification_token
+                "email_sent": email_sent
             },
-            next_step={
-                "endpoint": "/auth/verify-new-user-email",
-                "method": "POST",
-                "payload": {
-                    "user_id": user.user_id,
-                    "otp": "otp",
-                    "email_verification_token": email_verification_token,
-                    "device_id": device_id,
-                    "device_uuid": device_uuid
-                }
-            }
+            next_step={}
         )
 
 
     # New user email veryfication
-    def verify_new_user_email(self, payload: NewUserEmailVerificationRequest) -> GlobalResponse:
+    def verify_new_user_email(self, email_verification_token: str) -> GlobalResponse:
         try:
-            token_payload = self._decode_token(payload.email_verification_token)
+            payload: dict = self._decode_token(email_verification_token)
 
-            if token_payload is None:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.INVALID_OR_EXPIRED_TOKEN
+            if payload is None:
+                return HTMLResponse(
+                    content=templates.get_template("server/verify-email-error.html").render(request=self.request),
+                    status_code=status.HTTP_400_BAD_REQUEST
                 )
 
-            if token_payload.get("token_type") != String.EMAIL_VERIFICATION_TOKEN:
+            if payload.get("token_type") != String.EMAIL_VERIFICATION_TOKEN:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=String.INVALID_TOKEN_TYPE
                 )
 
-            if token_payload.get("user_id") != payload.user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.INVALID_TOKEN
-                )
-
-            user = self.db.query(UserTable).filter(
-                UserTable.user_id == payload.user_id
+            user: UserTable = self.db.query(UserTable).filter(
+                UserTable.user_id == payload["user_id"]
             ).first()
 
             if not user:
@@ -321,105 +288,22 @@ class RegistrationService(Repository, TokenGenerators):
                     detail=String.USER_NOT_FOUND
                 )
 
-            otp_record = self.db.query(OTPTable).filter(
-                OTPTable.user_id == user.user_id,
-                OTPTable.otp_token == payload.email_verification_token,
-                OTPTable.device_id == payload.device_id,
-                OTPTable.device_uuid == payload.device_uuid,
-                OTPTable.delever_to == user.email_address
-            ).first()
-
-            if not otp_record:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.OTP_NOT_FOUND
+            if (user.email_verified == True):
+                return HTMLResponse(
+                    content=templates.get_template("server/verify-email-complete.html").render(request=self.request, user=user),
+                    status_code=status.HTTP_200_OK
                 )
-
-            if self._is_expired(otp_record.expires_at):
-                self.db.delete(otp_record)
-                self.db.commit()
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.TIME_LIMET_EXPAIRE
-                )
-
-            if not Hashing.verify_otp(payload.otp, otp_record.otp_hash):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail=String.INVALID_OTP
-                )
-
+            
             user.email_verified = True
-            self.db.delete(otp_record)
+            # user.email_verified_at = Helpers.utc6dhaka()
 
-            token_payload = {
-                "token_type": String.ACCESS_TOKEN,
-                "user_id": user.user_id,
-                "device_id": payload.device_id,
-                "device_uuid": payload.device_uuid,
-                "iss": f"auth.{ENV.MAIN_DOMAIN}",
-                "aud": ENV.ALLOWED_AUDIENCES,
-            }
-
-            access_token, _ = self._create_token(
-                expire_min=ENV.ACCESS_EXPIRE,
-                payload=token_payload
-            )
-
-            token_payload["token_type"] = String.REFRESH_TOKEN
-            refresh_token, _ = self._create_token(
-                expire_day=ENV.REFRESH_EXPIRE,
-                payload=token_payload
-            )
-
-            ip = self.request.client.host if self.request and self.request.client else None
-            session = self.db.query(SessionTable).filter(
-                SessionTable.user_id == user.user_id,
-                SessionTable.device_id == payload.device_id,
-                SessionTable.device_uuid == payload.device_uuid
-            ).first()
-
-            if session:
-                session.access_token_hash = Hashing.create_hash(access_token)
-                session.refresh_token_hash = Hashing.create_hash(refresh_token)
-                session.last_ip_address = ip
-                session.is_login = True
-                session.otp_verified = True
-                session.login_at = Helpers.utc6dhaka()
-            else:
-                session = SessionTable(
-                    user_id=user.user_id,
-                    fcm_token=None,
-                    access_token_hash=Hashing.create_hash(access_token),
-                    refresh_token_hash=Hashing.create_hash(refresh_token),
-                    device_uuid=payload.device_uuid,
-                    device_id=payload.device_id,
-                    last_ip_address=ip,
-                    is_login=True,
-                    otp_verified=True,
-                    login_at=Helpers.utc6dhaka()
-                )
-                self.db.add(session)
 
             self.db.commit()
             self.db.refresh(user)
 
-            return GlobalResponse(
-                status_code=status.HTTP_200_OK,
-                success=True,
-                action="login",
-                message="Login successful",
-                data={
-                    "requires_2fa": False,
-                    "user_id": user.user_id,
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "token_type": "bearer",
-                    "expires_in": ENV.ACCESS_EXPIRE,
-                    "email_address": user.email_address,
-                    "phone_number": f"{user.country_code or ''}{user.phone_number or ''}" or None
-                },
-                next_step={}
+            return HTMLResponse(
+                content=templates.get_template("server/verify-email-complete.html").render(request=self.request, user=user),
+                status_code=status.HTTP_200_OK
             )
 
         except HTTPException:

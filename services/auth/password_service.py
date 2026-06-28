@@ -106,6 +106,8 @@ class PasswordService(TokenGenerators):
                 background_tasks=self.background_tasks
             )
 
+            reset_link: str = f"{ENV.AUTH_SERVER_URL}/auth/reset-password/{otp_token}"
+
             notificationServices.send_notification(
                 data=NotificationData(
                     user_id=user.user_id,
@@ -114,7 +116,7 @@ class PasswordService(TokenGenerators):
                     context={
                         "name": user.full_name,
                         "email": user.email_address,
-                        "reset_link": otp_token,
+                        "reset_link": reset_link,
                     },
                     noty_type=NotificationType.ALERT,
                     push=True,
