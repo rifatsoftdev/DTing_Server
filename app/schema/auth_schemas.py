@@ -94,11 +94,22 @@ class NewUserEmailVerificationRequest(BaseModel):
 
 
 # Schema for get new access token
-class AccessTokenRequest(BaseModel):
+class RefreshAccessTokenRequest(BaseModel):
     refresh_token: Optional[str] = None
-    user_id: Optional[str] = None
-    device_id: Optional[str] = None
-    device_uuid: Optional[str] = None
+    user_id: str
+    device_id: str
+    device_uuid: str
+
+    @field_validator("refresh_token", "user_id", "device_id", "device_uuid")
+    @classmethod
+    def required_string_must_not_be_blank(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+
+        if not value.strip():
+            raise ValueError("Field must not be blank")
+
+        return value.strip()
     
 
 # Schema for FCM token recive

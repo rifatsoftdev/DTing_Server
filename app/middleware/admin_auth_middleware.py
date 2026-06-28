@@ -83,7 +83,8 @@ class AdminAuthMiddleware(BaseHTTPMiddleware):
             return self._unauthorized(detail, status_code=status_code)
 
         finally:
-            db.close()
+            pass
+            # db.close()
 
         return await call_next(request)
 

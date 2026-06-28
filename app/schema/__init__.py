@@ -1,5 +1,5 @@
 from app.schema.auth_schemas import (
-    LoginRequest, RegisterRequest, AccessTokenRequest, EmailVerificationRequest,
+    LoginRequest, RegisterRequest, RefreshAccessTokenRequest, EmailVerificationRequest,
     GoogleLoginRequest,  LogoutAllRequest, DeleteAccountRequest,
     LogoutRequest, ForgetPasswordRequest, ResetPasswordRequest,
     CancelDeleteAccountRequest, ChangePasswordRequest, LinkGoogleAccountRequest,

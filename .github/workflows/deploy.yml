@@ -45,15 +45,7 @@ jobs:
               exit 1
             fi
 
-            docker stop dting-server || true
-            docker rm dting-server || true
-            docker build --no-cache -t dting-server .
-            docker run -d \
-              --name dting-server \
-              --env-file .env \
-              -p 8000:8000 \
-              dting-server
-            
-            echo "=== Waiting 5s to check if container stays up ==="
-            sleep 5
-            docker ps | grep dting-server || (echo "Container crashed. Logs:" && docker logs dting-server && exit 1)
+            ./setup.sh docker
+            sudo systemctl reload nginx
+
+            echo "Deployment completed successfully"

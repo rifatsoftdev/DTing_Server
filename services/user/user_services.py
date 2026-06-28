@@ -267,10 +267,20 @@ class UserServices:
     # a function of get user profile information
     def get_profile(self) -> GlobalResponse:
         try:
-            # Step 1: Get current user
             user: UserTable = self.request.state.current_user
 
-            # Step 2: Return profile response
+            last_login_session = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user.user_id,
+                SessionTable.is_login == True
+            ).order_by(SessionTable.login_at.desc()).first()
+
+            settings: SettingsTable | None = user.settings
+            
+            if not settings:
+                settings = self.db.query(SettingsTable).filter(
+                    SettingsTable.user_id == user.user_id
+                ).first()
+
             return GlobalResponse(
                 status_code=status.HTTP_200_OK,
                 success=True,
@@ -289,7 +299,11 @@ class UserServices:
                         "email_verified": user.email_verified,
                         "link_google": user.link_google,
                         "profile_picture": user.profile_image_url,
-                        "created_at": user.created_at.isoformat() if user.created_at else None
+                        "created_at": user.created_at.isoformat() if user.created_at else None,
+                        "last_login": last_login_session.login_at.isoformat() if last_login_session and last_login_session.login_at else None,
+                        "bio": None,
+                        "locale": None,
+                        "timezone": settings.timezone if settings and settings.timezone else None
                     }
                 }
             )

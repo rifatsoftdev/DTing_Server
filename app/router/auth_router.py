@@ -11,7 +11,7 @@ from app.schema import (
     LoginRequest, RegisterRequest, OTPRequest, VerifyOTPRequest, LogoutAllRequest,
     ChangePasswordRequest, CancelDeleteAccountRequest, LinkGoogleAccountRequest,
     SetUsernameRequest, DeleteAccountRequest, ResetPasswordRequest, LogoutRequest,
-    TOTPSetupRequest, AccessTokenRequest, EmailVerificationRequest
+    TOTPSetupRequest, RefreshAccessTokenRequest, EmailVerificationRequest
 )
 from app.schema.auth_schemas import NewUserEmailVerificationRequest
 from services import (
@@ -266,7 +266,7 @@ async def refresh_access_token(
     request: Request,
     response: Response,
     background_tasks: BackgroundTasks,
-    payload: AccessTokenRequest | None = Body(None),
+    payload: RefreshAccessTokenRequest | None = Body(None),
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -278,7 +278,7 @@ async def refresh_access_token(
     )
 
     return accountServices.refresh_access_token(
-        payload=payload or AccessTokenRequest(),
+        payload=payload,
         response=response
     )
 

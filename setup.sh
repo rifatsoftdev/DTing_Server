@@ -14,43 +14,22 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # ==========================================
-# Non-interactive / CI detection
+# Argument parsing - flag mandatory
 # ==========================================
-# Auto-detected when run inside GitHub Actions (CI=true, GITHUB_ACTIONS=true)
-# or any environment without a tty. Can also be forced manually:
-#   NONINTERACTIVE=true ./setup.sh
-if [ "$NONINTERACTIVE" = "true" ] || [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ] || [ ! -t 0 ]; then
-    NONINTERACTIVE=true
-else
-    NONINTERACTIVE=false
-fi
-
-# Default used ONLY when running non-interactively (override via env var).
-SETUP_MODE="${SETUP_MODE:-2}" # 1 = Docker, 2 = Manual (venv)
-
-if [ "$NONINTERACTIVE" = "true" ]; then
-    echo -e "${YELLOW}ℹ️  Non-interactive mode detected (CI/no tty). Prompts will be auto-answered.${NC}"
+if [ $# -eq 0 ]; then
+    echo -e "${RED}✗ Error: Setup mode required.${NC}"
     echo ""
+    echo "Usage:"
+    echo -e "  ${GREEN}./setup.sh docker${NC}   - Setup with Docker / Docker Compose"
+    echo -e "  ${GREEN}./setup.sh python${NC}   - Setup without Docker, manual venv"
+    echo ""
+    exit 1
 fi
 
-# ask "<prompt text>" "<default answer used in non-interactive mode>"
-# Sets $REPLY just like a `read -p ... -n 1 -r` call would.
-ask() {
-    local prompt="$1"
-    local default="$2"
-    if [ "$NONINTERACTIVE" = "true" ]; then
-        REPLY="$default"
-        echo "$prompt $default  (auto-answered)"
-    else
-        read -p "$prompt " -n 1 -r
-        echo
-    fi
-}
+SETUP_MODE="$1"
 
 # ==========================================
 # .env check — existence is the only gate.
-# Creating/updating .env is the user's responsibility, not this
-# script's. We never auto-generate it or ask "did you update it?".
 # ==========================================
 if [ ! -f .env ]; then
     echo -e "${RED}✗ .env file not found.${NC}"
@@ -66,17 +45,10 @@ fi
 echo -e "${GREEN}✓ .env file found. Proceeding...${NC}"
 echo ""
 
-echo "=========================================="
-echo "  Setup Options"
-echo "=========================================="
-echo ""
-echo "1. Setup with Docker / Docker Compose"
-echo "2. Setup without Docker (Manual)"
-echo ""
-ask "Choose an option (1 or 2):" "$SETUP_MODE"
-echo ""
-
-if [[ $REPLY =~ ^[1]$ ]]; then
+# ==========================================
+# Docker setup
+# ==========================================
+if [[ "$SETUP_MODE" == "docker" ]]; then
     echo -e "${GREEN}Setting up with Docker...${NC}"
 
     # Check if Docker is installed
@@ -92,7 +64,7 @@ if [[ $REPLY =~ ^[1]$ ]]; then
         COMPOSE_CMD="docker-compose"
     else
         echo -e "${RED}✗ Docker Compose is not installed.${NC}"
-        echo "You can either install Docker Compose or run this script again and choose option 2 for manual setup."
+        echo "You can either install Docker Compose or run: ./setup.sh python"
         exit 1
     fi
 
@@ -126,7 +98,10 @@ if [[ $REPLY =~ ^[1]$ ]]; then
     echo -e "   ${GREEN}$COMPOSE_CMD down${NC}"
     echo ""
 
-elif [[ $REPLY =~ ^[2]$ ]]; then
+# ==========================================
+# Manual python venv setup
+# ==========================================
+elif [[ "$SETUP_MODE" == "python" ]]; then
     echo -e "${GREEN}Setting up without Docker...${NC}"
 
     # Check if Python 3.10+ is installed
@@ -164,7 +139,12 @@ elif [[ $REPLY =~ ^[2]$ ]]; then
     uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 else
-    echo -e "${RED}Invalid option. Please choose 1 or 2.${NC}"
+    echo -e "${RED}✗ Invalid option: $SETUP_MODE${NC}"
+    echo ""
+    echo "Valid options:"
+    echo -e "  ${GREEN}./setup.sh docker${NC}   - Setup with Docker"
+    echo -e "  ${GREEN}./setup.sh python${NC}   - Setup with Python venv"
+    echo ""
     exit 1
 fi
 

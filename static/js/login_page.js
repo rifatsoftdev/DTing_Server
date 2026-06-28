@@ -147,16 +147,16 @@ function togglePasswordVisibility(inputField, iconElement) {
 // Handle email login
 async function handleEmailLogin(e) {
     e.preventDefault();
-    
+
     if (!validateEmailForm()) return;
     if (isSubmitting) return;
-    
+
     setLoading(true);
     clearAlerts();
-    
+
     const email_address = elements.emailInput.value.trim();
     const password = elements.emailPassword.value;
-    
+
     try {
         await loginUser(api, {
             email_address: email_address,
@@ -174,17 +174,17 @@ async function handleEmailLogin(e) {
 // Handle phone login
 async function handlePhoneLogin(e) {
     e.preventDefault();
-    
+
     if (!validatePhoneForm()) return;
     if (isSubmitting) return;
-    
+
     setLoading(true);
     clearAlerts();
-    
+
     const country_code = elements.countryCode.value;
     const phone_number = elements.phoneNumber.value;
     const password = elements.phonePassword.value;
-    
+
     try {
         await loginUser(api, {
             email_address: null,

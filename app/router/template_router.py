@@ -109,8 +109,8 @@ def account_page(
         db=db
     )
 
-    if not tokenService._decode_token(access_token):
-        return RedirectResponse("/login")
+    # if not tokenService._decode_token(access_token):
+    #     return RedirectResponse("/login")
     
     return templates.TemplateResponse("user/account.html", {"request": request})
 

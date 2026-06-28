@@ -59,41 +59,38 @@ export async function loginUser(api, {
         device_uuid
     };
 
-    console.log(payload);
-
     try {
         const responce = await api.post("/auth/login", payload);
-
+        
         const action = responce?.action;
         const data = responce?.data;
 
-        if (action === "login") {
-            // ✅ Cookie already backend e set hoye gেছে (HttpOnly access_token + refresh_token)
-            // localStorage ba api.setTokens() kichui lagbe na - browser nijei cookie pathabe
-            console.log("login");
-            
-            // save locally
-            localStorage.setItem('user_id', data.user_id);
-            localStorage.setItem('device_id', data.device_id);
-            localStorage.setItem('device_uuid', data.device_uuid);
+        if (responce.status_code === 200) {
+            if (action === "login") {
+                // ✅ Cookie already backend e set hoye gেছে (HttpOnly access_token + refresh_token)
+                // localStorage ba api.setTokens() kichui lagbe na - browser nijei cookie pathabe
+                console.log("login");
+                
+                // save locally
+                localStorage.setItem('user_id', data.user_id);
+                localStorage.setItem('device_id', data.device_id);
+                localStorage.setItem('device_uuid', data.device_uuid);
 
-            window.location.href = "/account";
+                window.location.href = "/account";
+            } else if (action === "2fa_verification_required") {
+                console.log("2fa_verification_required");
+                window.location.href = `/otp.html?user_id=${data.user_id}`;
+            } else if (action === "verify_email") {
+                console.log("verify_email");
+                window.location.href = `/verify-email.html?email=${result.email_address}`;
+            } else {
+                console.warn("Unknown action:", action);
+            }
+        } else if (responce.status_code === 404) {
+            throw new Error("User not found");
+        } else {
+            throw new Error(await parseResponseError(responce));
         }
-
-        else if (action === "2fa_verification_required") {
-            console.log("2fa_verification_required");
-            window.location.href = `/otp.html?user_id=${data.user_id}`;
-        }
-
-        else if (action === "verify_email") {
-            console.log("verify_email");
-            window.location.href = `/verify-email.html?email=${result.email_address}`;
-        }
-
-        else {
-            console.warn("Unknown action:", action);
-        }
-
     } catch (error) {
         console.error("Login error:", error.message);
         throw error;

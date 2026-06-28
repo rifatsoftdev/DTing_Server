@@ -11,7 +11,7 @@ from app.enums import NotificationType
 from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable, TwoFactorTable, UserTable
 from app.schema import (
     GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest, LoginRequest,
-    LogoutRequest, LogoutAllRequest, FCMTokenRequest, AccessTokenRequest
+    LogoutRequest, LogoutAllRequest
 )
 from app.utils import Hashing, Helpers
 
@@ -81,9 +81,23 @@ class SigninService(TokenGenerators, Repository):
             )
             
             if not user:
-                raise HTTPException(
+                return GlobalResponse(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=String.USER_NOT_FOUND
+                    success=False,
+                    message=String.USER_NOT_FOUND,
+                    data={},
+                    next_step={
+                        "endpoint": "/auth/register",
+                        "method": "POST",
+                        "payload": {
+                            "email_address": email_address,
+                            "phone_number": phone_number,
+                            "country_code": country_code,
+                            "user_password": user_password,
+                            "device_id": device_id,
+                            "device_uuid": device_uuid
+                        }
+                    }
                 )
 
             settings: SettingsTable = user.settings
@@ -318,7 +332,7 @@ class SigninService(TokenGenerators, Repository):
                     samesite="strict",
                     domain=None if ENV.DEBUG  else f".{ENV.MAIN_DOMAIN}",            # fix: subdomain shobgulote share korar jonno
                     max_age=ENV.REFRESH_EXPIRE_DAYS * 86400, # fix: din -> second e convert kora (1 din = 86400 sec)
-                    path="/auth"
+                    path="/auth/refresh-access-token"
                 )
 
                 # print(response.headers)

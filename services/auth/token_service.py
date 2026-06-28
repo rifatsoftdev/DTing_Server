@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from jose import JWTError, jwt
 
 from app.constants import ENV, String, AnsiColor
-from app.schema import AccessTokenRequest, GlobalResponse, FCMTokenRequest
+from app.schema import RefreshAccessTokenRequest, GlobalResponse, FCMTokenRequest
 from app.model import SessionTable
 from app.utils import Hashing
 

@@ -8,7 +8,7 @@ from app.enums import NotificationType
 from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable, UserTable
 from app.schema import (
     GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest,
-    FCMTokenRequest, AccessTokenRequest, SetUsernameRequest
+    FCMTokenRequest, SetUsernameRequest, RefreshAccessTokenRequest
 )
 from app.utils import Hashing, Helpers
 
@@ -152,7 +152,7 @@ class AccountServices(OTPService, SigninService):
     # Get a New Access Token Using Refresh Token
     def refresh_access_token(
         self,
-        payload: AccessTokenRequest,
+        payload: RefreshAccessTokenRequest,
         response: Response | None = None
     ) -> GlobalResponse:
         try:
@@ -162,6 +162,7 @@ class AccountServices(OTPService, SigninService):
                 or self.request.cookies.get("refresh_token")
                 or payload.refresh_token
             )
+            
             if refresh_token and refresh_token.lower().startswith("bearer "):
                 refresh_token = refresh_token.split(" ", 1)[1].strip()
 
